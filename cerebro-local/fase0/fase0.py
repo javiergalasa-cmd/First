@@ -47,7 +47,9 @@ import bench_cerebro  # noqa: E402
 
 REPO_MODELO = "ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF"
 REPO_DFLASH = "z-lab/Qwen3.8-27B-DFlash2-GGUF"  # borrador DFlash 2 para Qwen3.8-27B (opcional)
-RELEASES_LLAMA = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+# No "/releases/latest": llama.cpp publica cada version como pre-release y "latest" se las salta
+# (devolvia una version vieja con otros nombres de archivo). La lista va de la mas nueva a la mas vieja.
+RELEASES_LLAMA = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=15"
 AGENTE = "jadis-fase0/1.0"
 VARIANTES = {  # nombre -> cuantizacion que debe aparecer en el nombre del archivo
     "iq2_xs": "IQ2_XS", "iq2_s": "IQ2_S", "iq3_xxs": "IQ3_XXS", "iq3_s": "IQ3_S",
@@ -125,7 +127,7 @@ def _nvidia_smi() -> dict:
             salida = dict(zip(campos, valores))
         cp = subprocess.run(["nvidia-smi"], capture_output=True, encoding="utf-8", errors="replace",
                             timeout=30)
-        m = re.search(r"CUDA Version:\s*([\d.]+)", cp.stdout or "")
+        m = re.search(r"CUDA(?: Driver)? Version\s*:\s*([\d.]+)", cp.stdout or "")
         if m:
             salida["cuda_max_driver"] = m.group(1)
     except (OSError, subprocess.TimeoutExpired):
@@ -301,6 +303,27 @@ def elegir_llama_cpp(release: dict, cuda_driver: str | None) -> dict:
         aviso = "No pude leer la version de CUDA del driver; uso la compilacion mas compatible."
     return {"tag": release.get("tag_name"), "cuda": ".".join(map(str, elegido[0])),
             "zips": [elegido[1], elegido[2]], "aviso": aviso}
+
+
+def elegir_release_llama(releases: list[dict] | dict, cuda_driver: str | None) -> dict:
+    """La release mas nueva que ya tenga los zips de Windows+CUDA completos.
+
+    La mas reciente puede estar a medio subir (los zips llegan durante unos minutos tras crearla):
+    en ese caso se usa la anterior."""
+    if isinstance(releases, dict):  # por si la API devuelve una sola
+        releases = [releases]
+    ultimo_error = None
+    for release in releases:
+        if release.get("draft"):
+            continue
+        try:
+            return elegir_llama_cpp(release, cuda_driver)
+        except RuntimeError as e:
+            ultimo_error = e
+    raise RuntimeError(f"Ninguna de las ultimas {len(releases)} releases de llama.cpp trae zips de Windows "
+                       f"con CUDA ({ultimo_error}). Descarga a mano llama-...-bin-win-cuda-12.4-x64.zip y "
+                       "cudart-llama-bin-win-cuda-12.4-x64.zip de github.com/ggml-org/llama.cpp/releases, "
+                       "descomprimelos en la misma carpeta y usa --sin-descargas --llama-server <ruta>")
 
 
 def elegir_archivos_modelo(arbol: list[dict], variante: str, exigir_mtp: bool = True) -> dict:
@@ -907,8 +930,8 @@ def main(argv: list[str] | None = None) -> int:
         decir("\n== 2. Que hay que descargar ==")
         instalado = None if a.actualizar_llama else llama_cpp_instalado(carpeta)
         try:
-            eleccion = None if instalado else elegir_llama_cpp(pedir_json(RELEASES_LLAMA),
-                                                               inv["nvidia"].get("cuda_max_driver"))
+            eleccion = None if instalado else elegir_release_llama(pedir_json(RELEASES_LLAMA),
+                                                                   inv["nvidia"].get("cuda_max_driver"))
             arbol = listar_archivos_hf(a.repo)
             planes = [elegir_archivos_modelo(arbol, v) for v in variantes]
         except (urllib.error.URLError, OSError, RuntimeError, ValueError, KeyError) as e:

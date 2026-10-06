@@ -166,6 +166,20 @@ class PruebasElecciones(unittest.TestCase):
                                                  or "12.4" in a["name"]]}
         self.assertEqual(fase0.elegir_llama_cpp(release, "13.2")["cuda"], "12.4")
 
+    def test_salta_la_release_a_medio_subir(self):
+        a_medias = {"tag_name": "b10000", "prerelease": True,
+                    "assets": [{"name": "llama-b10000-bin-win-cpu-x64.zip"}]}
+        borrador = dict(self.RELEASE, tag_name="b10001", draft=True)
+        e = fase0.elegir_release_llama([borrador, a_medias, dict(self.RELEASE, prerelease=True)], "13.2")
+        self.assertEqual((e["tag"], e["cuda"]), ("b9999", "13.1"))
+        self.assertEqual(fase0.elegir_release_llama(self.RELEASE, "13.2")["tag"], "b9999")
+        with self.assertRaises(RuntimeError) as ctx:
+            fase0.elegir_release_llama([a_medias], "13.2")
+        self.assertIn("--sin-descargas", str(ctx.exception))
+
+    def test_lista_de_releases_no_latest(self):
+        self.assertNotIn("/latest", fase0.RELEASES_LLAMA, "latest se salta las pre-releases de llama.cpp")
+
     def test_release_sin_cuda_falla(self):
         with self.assertRaises(RuntimeError):
             fase0.elegir_llama_cpp({"assets": [{"name": "llama-b1-bin-win-cpu-x64.zip"}]}, "13.0")

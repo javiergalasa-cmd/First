@@ -47,7 +47,7 @@ que lo pegue la sesión de JADIS en tu PC, o tú mismo.
     CaMeL).
 - **Fase 0 preparada**: `cerebro-local/fase0/fase0.py` hace inventario, descarga (llama.cpp
   oficial + Qwen3.8-27B GSQ-RCO IQ3_S e IQ2_S con MTP, SHA256 y reanudación) y pruebas con y sin
-  MTP. Deja `C:\jadis-cerebro\informe-fase0.md` sin datos personales. 58 tests con un
+  MTP. Deja `C:\jadis-cerebro\informe-fase0.md` sin datos personales. 60 tests con un
   llama-server simulado.
 - **Riesgo nº 1**: la caché de prompt de los modelos híbridos en llama.cpp. Si el principio del
   prompt cambia, relee todo cada turno. La Fase 0 lo mide.
