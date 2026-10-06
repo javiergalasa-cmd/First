@@ -30,8 +30,10 @@ class ServidorFalso:
     herramienta:  nombre de la herramienta que "elige" el modelo
     """
 
-    def __init__(self, cache_ok=True, con_timings=True, herramienta="obtener_tiempo"):
+    def __init__(self, cache_ok=True, con_timings=True, herramienta="obtener_tiempo", puerto=0,
+                 al_completar=None):
         self.cache_ok, self.con_timings, self.herramienta = cache_ok, con_timings, herramienta
+        self.al_completar = al_completar
         self.ultimo_prompt = 0
         self.peticiones = []
         falso = self
@@ -64,10 +66,12 @@ class ServidorFalso:
                 elif self.path == "/v1/chat/completions":
                     falso.peticiones.append(cuerpo)
                     self._responder(falso.completar(cuerpo))
+                    if falso.al_completar:
+                        falso.al_completar(cuerpo)
                 else:
                     self._responder({"error": "no existe"}, 404)
 
-        self.servidor = ThreadingHTTPServer(("127.0.0.1", 0), Manejador)
+        self.servidor = ThreadingHTTPServer(("127.0.0.1", puerto), Manejador)
         self.url = f"http://127.0.0.1:{self.servidor.server_address[1]}"
         self.hilo = threading.Thread(target=self.servidor.serve_forever, daemon=True)
 
@@ -129,6 +133,7 @@ class PruebasArranque(unittest.TestCase):
         cmd = arrancar_cerebro.construir_comando(self.args())
         texto = " ".join(cmd)
         self.assertIn("--host 127.0.0.1", texto)
+        self.assertIn("--alias qwen3.8-27b-local", texto, "la API no debe anunciar la ruta del archivo")
         self.assertIn("--spec-type draft-mtp", texto)
         self.assertIn("--spec-draft-n-max 2", texto)
         self.assertIn("-np 1", texto)

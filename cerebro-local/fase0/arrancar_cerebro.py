@@ -30,6 +30,8 @@ def construir_comando(a: argparse.Namespace) -> list[str]:
     cmd = [
         a.llama_server,
         "-m", a.modelo,
+        # Nombre fijo del modelo en la API: sin el, llama-server anuncia la ruta completa del archivo.
+        "--alias", a.alias,
         "--host", a.host,
         "--port", str(a.puerto),
         "-c", str(a.contexto),
@@ -96,6 +98,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--llama-server", default="llama-server.exe" if os.name == "nt" else "llama-server",
                    help="ruta al ejecutable llama-server (por defecto, el del PATH)")
     p.add_argument("--modelo", required=True, help="ruta al .gguf del modelo")
+    p.add_argument("--alias", default="qwen3.8-27b-local", help="nombre del modelo en la API")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--puerto", type=int, default=8080)
     p.add_argument("--contexto", type=int, default=65536,

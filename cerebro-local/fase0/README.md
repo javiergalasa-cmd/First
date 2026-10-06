@@ -1,143 +1,142 @@
 # Fase 0: medir el cerebro local en tu PC (sin tocar JADIS)
 
-**Objetivo:** saber, con números de **tu** equipo, si Qwen3.8-27B sirve como cerebro de JADIS
-antes de cambiar nada. Tiempo: ~1-2 h, casi todo de descargas.
+**Objetivo:** saber, con números de **tu** equipo, a qué velocidad va Qwen3.8-27B y si sirve
+como cerebro de JADIS. Así las decisiones de PLAN.md se toman con datos y no con
+estimaciones.
 
-Contenido de esta carpeta:
+**Lo que no hace:**
+- no toca JADIS;
+- no cambia la configuración del sistema;
+- no instala nada en Windows: todo queda en una carpeta (`C:\jadis-cerebro`) que se puede
+  borrar entera al terminar.
 
 | Archivo | Para qué |
 |---|---|
-| `arrancar_cerebro.py` | Lanza `llama-server` con la configuración del plan (PLAN.md §7) |
-| `bench_cerebro.py` | Mide velocidad, primer turno, caché entre turnos, herramientas y pensar |
-| `tests/` | Pruebas de los dos scripts contra un `llama-server` simulado (`python -m unittest discover -s tests`) |
+| `fase0.py` | **Todo en un comando:** mira el equipo, descarga (preguntando antes), prueba y deja el informe |
+| `arrancar_cerebro.py` | Lanza `llama-server` con la configuración del plan (PLAN.md §7); también sirve suelto |
+| `bench_cerebro.py` | Mide la velocidad, el primer turno, la caché entre turnos, las herramientas y el pensar; también sirve suelto |
+| `tests/` | 49 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
 
-Los dos scripts usan **solo la biblioteca estándar de Python** (3.9+) y **no hablan con
-Internet**: el banco solo llama a la URL local que le des.
+Los scripts solo usan la **biblioteca estándar de Python** (3.9 o superior). Solo se conectan
+a Internet para descargar:
+- `github.com`: la versión oficial de llama.cpp;
+- `huggingface.co`: el modelo.
+
+Las pruebas hablan únicamente con `127.0.0.1`.
 
 ---
 
-## 1. Datos de tu equipo (PowerShell)
+## Antes de empezar (5 minutos)
+
+1. **Cierra lo que use la GPU:** JADIS, Ollama, juegos y el navegador si tiene muchas pestañas.
+   El script avisa si encuentra a Ollama o JADIS abiertos, o la VRAM ocupada.
+2. **Ajuste de NVIDIA** (evita que vaya lento sin avisar): *Panel de control de NVIDIA →
+   Administrar configuración 3D → Configuración de programa*.
+   - Añade `llama-server.exe` cuando lo hayas descargado; lo encontrarás en
+     `C:\jadis-cerebro\llama.cpp\...`.
+   - Pon **CUDA - Sysmem Fallback Policy = Prefer No Sysmem Fallback**.
+   - Hazlo solo para ese programa, no en la configuración global.
+   - Si te lo saltas, el informe lo deja ver igualmente, pero las medidas pueden salir peores.
+3. **Comprueba que tienes Python:** `python --version` debe dar 3.9 o más.
+4. **Espacio:** ~25 GB libres. Los dos modelos de prueba ocupan 21 GB; llama.cpp, menos de 1 GB.
+
+## Opción A: un solo comando (recomendada)
+
+En PowerShell:
 
 ```powershell
-# RAM: capacidad por módulo, velocidad y tipo (SMBIOSMemoryType 26 = DDR4, 34 = DDR5)
-Get-CimInstance Win32_PhysicalMemory | Select-Object Capacity, ConfiguredClockSpeed, SMBIOSMemoryType
+git clone -b claude/magical-darwin-gcbo0m https://github.com/javiergalasa-cmd/First C:\jadis-cerebro\kit
+cd C:\jadis-cerebro\kit\cerebro-local\fase0
 
-# CPU
-Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
-
-# GPU, VRAM y bus PCIe
-nvidia-smi --query-gpu=name,memory.total,pcie.link.gen.max,pcie.link.width.max --format=csv
-
-# Espacio libre en disco (cada modelo ocupa 10-16 GB)
-Get-PSDrive -PSProvider FileSystem
+python fase0.py --solo-inventario   # ~10 s, no descarga nada
+python fase0.py                     # todo; antes de descargar enseña qué y cuánto, y pregunta
 ```
 
-Pásame lo que salga: sirve para ajustar las estimaciones de PLAN.md §4.
+Si no quieres usar git, descarga el zip de la rama, descomprímelo y entra en
+`cerebro-local\fase0`:
+<https://github.com/javiergalasa-cmd/First/archive/refs/heads/claude/magical-darwin-gcbo0m.zip>
 
-## 2. Ajuste de NVIDIA (evita que vaya lento a escondidas)
+**Qué hace `python fase0.py`:**
 
-*Panel de control de NVIDIA → Administrar configuración 3D → Configuración de programa →*
-añade `llama-server.exe` → **CUDA - Sysmem Fallback Policy = Prefer No Sysmem Fallback**.
+1. **Inventario.** Mira la GPU y la VRAM, la CPU y la RAM: GB, **DDR4 o DDR5**, velocidad,
+   **cuántos módulos y si va en uno o dos canales**. También el disco y si hay programas que
+   estorben.
 
-Así, si la VRAM se llena, `llama-server` da un error en vez de usar RAM "compartida" y
-hundirse. Hazlo solo para ese programa, no en la configuración global, para no afectar a los
-juegos.
+   Avisa también si tu RAM **va más lenta de lo que pone en el módulo**. Pasa mucho: falta
+   activar el perfil XMP/EXPO, que en placas ASUS se llama DOCP, en la BIOS. Activarlo es gratis
+   y acelera la parte del modelo que va en la CPU.
+2. **Descarga, preguntando antes:**
+   - la última compilación oficial de llama.cpp para Windows con CUDA, eligiendo la versión de
+     CUDA que admite tu driver;
+   - Qwen3.8-27B GSQ-RCO de ISTA-DASLab en dos tamaños, los dos **con cabezal MTP**: **IQ3_S**
+     (11,8 GB) e **IQ2_S** (9,3 GB).
 
-## 3. Instalar llama.cpp (compilación oficial para Windows con CUDA)
+   Comprueba el SHA256 de cada archivo contra el que publica Hugging Face. Si se corta,
+   **vuelve a lanzar el mismo comando y reanuda** donde se quedó.
+3. **Pruebas.** Cada modelo se prueba **con MTP** (sin pensar y pensando) y **sin MTP**, para
+   saber cuánto aporta. Cada prueba arranca `llama-server`, espera a que cargue, ejecuta el banco
+   y lo para.
+4. **Informe.** Deja `C:\jadis-cerebro\informe-fase0.md` (y `.json`). **Pásamelo.** No lleva:
+   - el nombre del equipo;
+   - el usuario;
+   - rutas;
+   - números de serie.
 
-1. Entra en <https://github.com/ggml-org/llama.cpp/releases> (la última).
-2. Descarga el zip `llama-…-bin-win-cuda-…-x64.zip` y el `cudart-llama-bin-win-cuda-…-x64.zip`
-   de la **misma** versión de CUDA. El nombre exacto cambia con cada versión.
-3. Descomprime los dos en la misma carpeta, por ejemplo `C:\llama\`.
-4. Comprueba que tu versión tiene MTP:
-   `C:\llama\llama-server.exe --help | Select-String "draft-mtp"`. Tiene que aparecer.
+**Duración:** la descarga depende de tu conexión (21 GB: ~10 min a 300 Mb/s). Las pruebas
+tardan ~1-1,5 h. Puedes dejarlo trabajando; mientras tanto, mejor no usar la GPU.
 
-## 4. Descargar el modelo de referencia (el oficial, todavía con censura)
+**Variantes útiles:**
 
-- Repo: **`ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF`** en Hugging Face.
-- Archivo: la variante **IQ3_S** que lleve **`mtp`** en el nombre (~12 GB). Descárgala desde
-  la pestaña *Files* del navegador, o con `hf download <repo> <archivo> --local-dir D:\modelos`.
-- Antes de descargar, comprueba en la ficha que de verdad es de ISTA-DASLab y que el archivo
-  lleva el cabezal MTP.
-- Anota el hash, para saber siempre qué archivo usaste:
-
-  ```powershell
-  Get-FileHash D:\modelos\<archivo>.gguf -Algorithm SHA256
-  ```
-
-  Compáralo con el SHA256 que muestra Hugging Face junto al archivo.
-
-Empezamos por el oficial a propósito. Es la referencia con la que se compara después cada
-versión sin censura (Fase 1).
-
-## 5. Arrancar
-
-```powershell
-python arrancar_cerebro.py --llama-server C:\llama\llama-server.exe --modelo D:\modelos\<archivo>.gguf
-```
-
-- Para ver el comando sin ejecutarlo: añade `--solo-mostrar`.
-- La primera carga tarda un poco: lee ~12 GB del disco.
-- Deja esa ventana abierta.
-- Para pararlo: `Ctrl+C`.
-
-Mientras corre, mira el *Administrador de tareas → Rendimiento → GPU*. La **"Memoria de GPU
-compartida"** no debería subir. Si sube, sube `--fit-target` (por ejemplo a 1536).
-
-## 6. Medir (en otra ventana)
-
-```powershell
-python bench_cerebro.py --salida informe-iq3s-mtp.json
-```
-
-**Si puedes, usa el prompt de sistema REAL de Hermes.** Pide a la sesión de JADIS en tu PC que
-lo vuelque a un archivo; se queda en tu PC. Luego:
-
-```powershell
-python bench_cerebro.py --sistema D:\pruebas\prompt_hermes.txt --salida informe-hermes.json
-```
-
-El banco hace, sin pensar y pensando:
-
-1. **3 turnos de conversación** con un prompt de sistema grande. Mide cuánto tarda en leerlo,
-   a cuántos tok/s genera y **si reutiliza la caché** en los turnos 2 y 3.
-2. **Una llamada a herramienta.** Comprueba que pide `obtener_tiempo` con `{"ciudad": "Madrid"}`
-   bien formado.
-
-Al final imprime los **criterios de la Fase 0** con `[OK]` / `[NO]`.
-
-**Aceptación del MTP.** Si el servidor la incluye en `timings`, el informe muestra
-"MTP acepta X/Y". Si no sale, búscala en la ventana de `llama-server`: al terminar cada
-petición con especulativa imprime una línea de *acceptance*. Sirve para comparar versiones en
-la Fase 1, porque un MTP roto da ~0.
-
-## 7. Variantes que conviene medir (una cada vez)
-
-| Prueba | Cómo |
+| Quiero… | Comando |
 |---|---|
-| Sin MTP (para ver cuánto aporta) | `arrancar_cerebro.py … --sin-mtp` |
-| Borrador de 3 tokens | `… --borrador-n 3` |
-| Sin subir capas al leer el prompt | `… --sin-op-offload` |
-| Más pequeño y más rápido | el archivo IQ3_XXS-mtp del mismo repo |
-| Cuantización clásica | Unsloth IQ4_XS (15,7 GB) |
+| Solo el de 3,5 bits (12 GB) | `python fase0.py --variantes iq3_s` |
+| Una prueba rápida (2 turnos, sin pensar) | `python fase0.py --rapido` |
+| Usar el prompt real de Hermes | `python fase0.py --sistema D:\pruebas\prompt_hermes.txt` |
+| Probar también 3 tokens de borrador | `python fase0.py --configs mtp2,mtp3,sin-mtp` |
+| Otra carpeta u otro disco | `python fase0.py --carpeta D:\jadis-cerebro` |
+| Ya tengo llama.cpp y el modelo | `python fase0.py --sin-descargas --llama-server C:\llama\llama-server.exe --modelo D:\m.gguf` |
+| Sin preguntar (lo lanza otro programa) | añade `--si` |
 
-Guarda cada informe con un nombre distinto y pásamelos: con eso se decide la D3 del plan.
+## Opción B: paso a paso, a mano
 
-## Criterios de aceptación (PLAN.md §11, Fase 0)
+Si prefieres hacerlo tú, o algo falla en la opción A:
 
-- (a) **≥ 8 tok/s** generando, con MTP y sin pensar.
-- (b) Turnos 2+ que **reutilizan ≥ 80 %** del prompt. **Si falla, es bloqueante:** antes de
-  integrar nada hay que resolver la caché del modelo híbrido.
-- (c) Primer turno con el prompt grande en **≤ 60 s**.
-- (d) Llamada a herramienta **bien formada**.
-- (e) Sin "memoria de GPU compartida".
+1. **llama.cpp.** Entra en <https://github.com/ggml-org/llama.cpp/releases> y descarga de la
+   **misma** versión de CUDA:
+   - el zip `llama-…-bin-win-cuda-…-x64.zip`;
+   - el zip `cudart-llama-bin-win-cuda-…-x64.zip`.
+
+   Descomprime los dos en `C:\llama\`. Comprueba que tiene MTP: en
+   `C:\llama\llama-server.exe --help | Select-String "draft-mtp"` tiene que salir algo.
+2. **Modelo.** Repo `ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF`: el archivo IQ3_S que lleve `mtp` en
+   el nombre. Anota su hash con `Get-FileHash <archivo> -Algorithm SHA256`.
+3. **Arrancar:**
+   `python arrancar_cerebro.py --llama-server C:\llama\llama-server.exe --modelo D:\modelos\<archivo>.gguf`
+   (con `--solo-mostrar` enseña el comando sin ejecutarlo).
+4. **Medir, en otra ventana:** `python bench_cerebro.py --salida informe.json`.
+
+## Qué se mide y cuándo se da por buena la Fase 0
+
+| Criterio | Umbral | Por qué |
+|---|---|---|
+| (a) Velocidad al generar, con MTP y sin pensar | ≥ 8 tok/s | Por debajo, una respuesta con herramientas se hace larga |
+| (b) Caché de prompt entre turnos | reutiliza ≥ 80 % | **Bloqueante**: si falla, cada turno relee todo el prompt (25-50 s) |
+| (c) Primer turno con el prompt grande | ≤ 60 s | Es lo que tarda en "leerse" a Hermes al empezar |
+| (d) Llamada a herramienta | bien formada | El cerebro de un agente vive de esto |
+| (e) Memoria de GPU compartida | sin desbordar | Si la VRAM se desborda a la RAM, todo va a la mitad |
+
+**Aceptación del MTP.** Si el servidor la incluye en `timings`, el banco muestra "MTP acepta
+X/Y". Si no, `fase0.py` la lee del registro de `llama-server`. Un MTP roto da ~0, y eso es lo que
+habrá que vigilar con los modelos sin censura de la Fase 1.
 
 ## Solución de problemas
 
 | Síntoma | Qué hacer |
 |---|---|
-| `llama-server` no arranca: "unknown argument" | Tu versión es más vieja que lo que pide el plan. Descarga la última release; o quita la opción con `--sin-mtp` / `--formato-razonamiento auto` |
-| Error de memoria (OOM) al cargar | Sube `--fit-target` o baja `--contexto 32768` (solo para medir: Hermes necesita 64K) |
-| Va muy lento y sube la memoria compartida | Revisa el paso 2 (Sysmem Fallback) y cierra lo que use la GPU (navegador, juegos) |
+| "unknown argument" al arrancar | Tu `llama-server` es más viejo que lo que pide el plan: deja que `fase0.py` baje el último, o quita la opción (`--sin-mtp`, `--formato-razonamiento auto`) |
+| Error de memoria (out of memory) al cargar | Sube el margen (`arrancar_cerebro.py --fit-target 1536`) o cierra lo que use la GPU |
+| Va muy lento y sube la "memoria de GPU compartida" | Revisa el ajuste de NVIDIA del paso 2 y cierra el navegador o los juegos |
 | `cache FALLO` en los turnos 2+ | Apunta el resultado y no sigas a la Fase 2: es el riesgo nº 1 del plan |
-| Herramienta `FALLO` | Prueba la plantilla oficial con `--plantilla <archivo.jinja>` y repite |
+| Herramienta `FALLO` | Prueba la plantilla oficial con `arrancar_cerebro.py --plantilla <archivo.jinja>` |
+| La descarga se corta | Vuelve a lanzar el mismo comando: reanuda y comprueba el SHA256 al acabar |
+| "pide iniciar sesión o aceptar condiciones" | El repo de Hugging Face es privado o restringido: avísame y busco otro |

@@ -1,10 +1,18 @@
 # Cerebro local para JADIS: Qwen3.8-27B sin censura en tu PC + frontera de privacidad
 
-> **Estado:** plan e investigación. No se ha tocado JADIS.
+> **Estado:** plan e investigación. No se ha tocado JADIS. **Fase 0 lista para lanzar** con un
+> comando (`fase0/fase0.py`).
 > **Rama:** `claude/magical-darwin-gcbo0m` (repo `First`). **Fecha:** 6-oct-2026.
+> **Segunda revisión (6-oct):**
+> - decididas D1, D2 y D5 (sección 10);
+> - tu RAM son 32 GB en **un solo módulo**, así que va en un canal y cambian las estimaciones
+>   (sección 4);
+> - corregido el índice de inteligencia (sección 5.1);
+> - añadidos "cómo reconoce el código un secreto" (8.3) y la seguridad con un cerebro sin
+>   censura (8.6).
 > **Repo público:** este documento no lleva claves, rutas personales ni datos privados.
 > **Cómo leerlo:** la sección 0 es el resumen. Las secciones 3 y 4 explican los conceptos y qué
-> esperar de tu PC. La 11 es el plan por fases. La 10 son las decisiones que necesito de ti.
+> esperar de tu PC. La 11 es el plan por fases. La 10 son las decisiones, tomadas y pendientes.
 > Cada cifra va marcada como **medida por terceros**, **declarada por sus autores** o
 > **estimación mía**, con su fuente en la sección 14.
 
@@ -23,9 +31,13 @@
    cambio en la respuesta. Lo hace código determinista, no la buena voluntad de un modelo.
 3. **Qwen3.8-27B existe y es buena elección.** Lo publicó Alibaba el 14-ago-2026 con licencia
    Apache 2.0: denso, 27.000 millones de parámetros, visión, 262K de contexto y cabezal MTP.
-   Tiene un 52 en el índice de Artificial Analysis, frente al 32 del Qwen3.6-35B-A3B. Es el
-   mismo modelo que ya usa tu cerebro desde la nube: **no pierdes inteligencia, ganas
-   privacidad.**
+   - **Cómo de listo es:** en el índice independiente de Artificial Analysis (versión vigente,
+     v4.3), pensando a tope saca **34**. Queda cerca de Sonnet 5 (38 a esfuerzo máximo) y lejos
+     de Sonnet 5.5 (56) y Opus 5.5 (58).
+   - **El 52 de agosto** era de la versión anterior del índice, rehecha el 4-sep. Detalle en
+     5.1.
+   - Es el mismo modelo que ya usa tu cerebro desde la nube: **no pierdes inteligencia respecto
+     a hoy, ganas privacidad.**
 4. **No cabe entero en tu GPU.** Tu RTX 4060 tiene 8 GB y el modelo ocupa ~16 GB a 4 bits
    (~12 GB a 3,5 bits). Hay que repartirlo entre la GPU y la CPU.
 5. **"Cargar a cachitos" (AirLLM) no te conviene.** Relee el modelo entero por cada token, y en
@@ -38,10 +50,14 @@
    combina, dentro de llama.cpp, es el reparto GPU/CPU con la **decodificación especulativa**
    del cabezal MTP que trae el propio modelo. Terceros han medido entre +43 % y +142 % de
    velocidad según la GPU (+74 % en una de 8 GB), sin perder calidad.
-7. **Velocidad esperable en tu PC** (estimación mía, a confirmar en la Fase 0):
-   - ~10-12 tokens/s con la cuantización GSQ-RCO IQ3_S + MTP si tu RAM es DDR5.
-   - ~7-8 tok/s con IQ4_XS.
-   - Referencia medida por un tercero con una GPU de 8 GB parecida: 4,2 → 7,3 tok/s.
+7. **Velocidad esperable en tu PC** (estimación mía, a confirmar en la Fase 0). Tu RAM es **un
+   solo módulo de 32 GB, que funciona en un canal**: la mitad de ancho de banda que con dos.
+   - **IQ3_S + MTP:** ~4 tokens/s si es DDR4 y ~7 si es DDR5.
+   - **IQ2_S + MTP:** ~7-12 tok/s.
+   - **Con un segundo módulo igual, IQ3_S + MTP:** ~7-12 tok/s. Es la mejora más barata
+     (sección 4).
+   - Referencia medida por un tercero con una GPU de 8 GB parecida y dos canales: 4,2 → 7,3
+     tok/s.
    - En la nube, Qwen3.8-27B va a ~48 tok/s (mediana de Artificial Analysis), pero los
      gratis tienen colas: el 6-oct un "hola" tardó 196 s.
 8. **La cuantización importa más que el motor.** ISTA-DASLab, el laboratorio de GPTQ, publicó
@@ -65,9 +81,15 @@
     - las búsquedas web, los avisos por ntfy.sh y la voz por OpenAI.
 
     El plan las clasifica una a una (sección 8.2).
-12. **Plan en 6 fases.** Empieza midiendo en tu PC sin tocar JADIS, con el kit incluido en
-    `fase0/`. Necesito de ti tres datos: cuánta RAM tienes, si es DDR4 o DDR5, y qué motor
-    viste exactamente. Además hay 10 decisiones que tomar (sección 10).
+12. **Plan en 6 fases.** Empieza midiendo en tu PC sin tocar JADIS. **`python fase0.py`** lo
+    hace todo y deja un informe para compartir:
+    - averigua si tu RAM es DDR4 o DDR5 y cuántos canales usa;
+    - descarga, preguntando antes;
+    - prueba IQ3_S e IQ2_S, con y sin MTP.
+
+    Ya están decididas D1 (esperar y, si no responde, preguntarte por el móvil antes de ir a la
+    nube), D2 (un modelo sin censura ya hecho) y D5 (tu idea de que el cerebro no lea Internet
+    directamente). Quedan las demás (sección 10).
 
 ---
 
@@ -242,13 +264,20 @@ Qwen3.8-27B en GPUs de 8 GB.
 
 - RTX 4060 de 8 GB. `nvidia-smi` no dice "Laptop", así que la tomo como **de sobremesa**:
   272 GB/s, PCIe 4.0 x8.
-- CPU AMD con gráfica integrada.
+- CPU AMD Ryzen con gráfica integrada y placa ASUS.
 - Windows.
+- **32 GB de RAM en un solo módulo Kingston FURY.** Me lo dijiste tú, y también aparece en la
+  sesión de la GPU.
 
-**Lo que no sé (y cambia mucho el resultado):**
+**Por qué importa tanto el "un solo módulo":** las placas de consumo tienen dos canales de
+memoria y cada módulo ocupa uno. Con un módulo, la CPU lee la RAM a **la mitad de velocidad**
+de la que podría. Y como vimos en 3.2, en este reparto GPU/CPU la velocidad la marca justo eso:
+lo rápido que la CPU lee su parte del modelo.
 
-- cuánta RAM tienes;
-- si es DDR4 o DDR5;
+**Lo que no sé todavía** (lo averigua `fase0.py --solo-inventario` en 10 s):
+
+- si es DDR4 o DDR5 (la referencia del módulo, tipo `KF432…` o `KF560…`, lo dice);
+- su velocidad;
 - qué CPU exacta tienes.
 
 **Mediciones de terceros con Qwen3.8-27B + MTP en llama.cpp:**
@@ -261,18 +290,32 @@ Qwen3.8-27B en GPUs de 8 GB.
 | RTX 3090 **24 GB** | Q4_K_M | 31,9 | 52,8 |
 | RTX 4090 **24 GB** | — | 47,7 | 76,3 |
 
-**Mi estimación para tu PC** (tokens/s al generar). Cómo la he calculado:
+**Mi estimación para tu PC** (tokens/s al generar, **con MTP**). Cómo la he calculado:
 
 - La fórmula de 3.2, suponiendo ~6,3 GB de pesos en la VRAM.
+- Velocidad real de la RAM:
+  - 1 módulo DDR4-3200: ~20 GB/s;
+  - 1 módulo DDR5: ~35 GB/s;
+  - 2 módulos DDR4 / DDR5: ~38 / ~65 GB/s.
 - Corregida con un factor de 0,75, calibrado con la medición de la RTX 5060 Laptop.
-- MTP ×1,6-1,75.
+- MTP ×1,6-1,75. Sin MTP, divide entre ~1,7.
 - **Error esperable: ±30 %.**
 
-| Cuantización | Tamaño | Parte en RAM | DDR5 sin MTP | **DDR5 con MTP** | DDR4 sin MTP | DDR4 con MTP |
+| Cuantización | Tamaño | Parte en RAM | **Tu PC hoy, 1 módulo DDR4** | **Tu PC hoy, 1 módulo DDR5** | 2 módulos DDR4 | 2 módulos DDR5 |
 |---|---|---|---|---|---|---|
-| Unsloth IQ4_XS | 15,7 GB | ~9,4 GB | ~4,5 | **~7-8** | ~3 | ~4,5-5 |
-| **GSQ-RCO IQ3_S** | 11,8 GB | ~5,5 GB | ~7 | **~11-12** | ~4,5 | ~7-8 |
-| GSQ-RCO IQ3_XXS | 10,1 GB | ~3,8 GB | ~9 | **~14-16** | ~6 | ~10 |
+| Unsloth IQ4_XS | 15,7 GB | ~9,4 GB | ~2,5 | ~4-4,5 | ~4,5-5 | ~7-8 |
+| **GSQ-RCO IQ3_S** | 11,8 GB | ~5,5 GB | **~4** | **~7** | ~7-8 | ~11-12 |
+| GSQ-RCO IQ3_XXS | 10,1 GB | ~3,8 GB | ~6 | ~9-10 | ~10 | ~14-16 |
+| **GSQ-RCO IQ2_S** | 9,3 GB | ~3 GB | **~7** | **~11-12** | ~12-13 | ~17-19 |
+
+**Qué se deduce de la tabla:**
+
+- **Un segundo módulo igual** (mismo modelo Kingston FURY, misma referencia) casi duplica la
+  velocidad. Para este uso es la mejora de hardware **más barata con diferencia**, y no obliga a
+  cambiar placa ni procesador. Pasar de DDR4 a DDR5 sí lo obligaría.
+- **Con un solo módulo, la versión de 2,75 bits (IQ2_S) puede ser el punto dulce.** Según sus
+  autores pierde poco (sección 5.6), y deja casi todo el modelo en la VRAM. Por eso la Fase 0
+  mide las dos, IQ3_S e IQ2_S.
 
 **Cómo se traduce en uso real:**
 
@@ -287,11 +330,14 @@ Qwen3.8-27B en GPUs de 8 GB.
   Analysis). Vas a ir 4-6 veces más lento, pero **sin colas** (el 6-oct un "hola" tardó 196 s
   por las colas de los gratis) y sin que nadie lea nada.
 
-**RAM.**
+**RAM.** Tus **32 GB** bastan en cantidad. Cabe todo con margen:
 
-- Con **32 GB** cabe todo con margen: el modelo (5-10 GB en RAM), Windows, Docker con Hindsight
-  y Postgres, Hermes y el HUD.
-- Con **16 GB** solo sería viable IQ3_XXS o menos, y muy justo.
+- la parte del modelo que va a la RAM (3-10 GB);
+- Windows;
+- Docker con Hindsight y Postgres;
+- Hermes y el HUD.
+
+Lo que limita es la velocidad (un canal), no la cantidad.
 
 ---
 
@@ -310,9 +356,36 @@ Qwen3.8-27B en GPUs de 8 GB.
 - **Control del razonamiento.** `reasoning_effort` y `preserve_thinking`.
 - **Herramientas.** El repo despliega con `--tool-call-parser qwen3_coder`: llamadas en formato
   XML, que llama.cpp interpreta con `--jinja`.
-- **Inteligencia.** Índice de Artificial Analysis **52**; Qwen3.6-35B-A3B (MoE) **32**.
-- **Ojo.** Las cifras de benchmarks de la ficha las publicó Alibaba. Que yo sepa, no las ha
-  reproducido nadie independiente.
+- **Inteligencia, medida por un tercero independiente** (Artificial Analysis, que pasa sus
+  propias pruebas):
+
+  | Modelo (configuración) | Índice vigente (v4.3, oct-2026) |
+  |---|---|
+  | Claude Opus 5.5 (esfuerzo máximo) | **58** |
+  | Claude Sonnet 5.5 (esfuerzo máximo) | **56** |
+  | Claude Sonnet 5 (esfuerzo máximo) | **38** |
+  | **Qwen3.8-27B** (pensando a tope, "xhigh") | **34** |
+  | Claude Sonnet 5 (esfuerzo alto) | **32** |
+
+  - **Por qué antes te dije 52.** Ese 52 es de la versión v4.1.1 (agosto). Con ella Qwen3.8-27B
+    empataba con GPT-5.6 Luna y quedaba a 1 punto de GLM-5.2 y DeepSeek V4 Pro.
+  - **Qué cambió.** El 4-sep, Artificial Analysis rehízo el índice (v4.2):
+    - añadió tareas agénticas de trabajo real con preguntas privadas;
+    - quitó GPQA, ya saturado;
+    - duplicó al 40 % el peso de las pruebas que los laboratorios no pueden ver ni "entrenar".
+
+    Las cifras de versiones distintas no se comparan entre sí. Con el índice nuevo, Qwen3.8
+    queda claramente por debajo de los Claude actuales.
+  - **En pruebas concretas** quedan más parejos. Alibaba declara 61,7 % en SWE-bench Pro, y un
+    agregador da a Sonnet 5 un 63,2 %. Pero son cifras de cada fabricante o de webs
+    secundarias: valen menos que el índice independiente.
+  - **Lo que tendrás en local es algo menos que ese 34**, por tres motivos: estará cuantizado
+    a ~3 bits, sin censura, y pensando poco para ir rápido. Calidad tipo "Sonnet 5 sin
+    esforzarse", no tipo Opus 5.5.
+  - **Para el papel de cerebro es suficiente:** entender lo que pides, decidir, delegar,
+    resumir y usar herramientas. Las tareas difíciles se delegan, seudonimizadas, al mejor
+    modelo que tenga el router en ese momento.
+- **Ojo con la ficha oficial.** Las cifras de benchmarks de la ficha las publicó Alibaba.
 
 ### 5.2 Carga por capas: AirLLM ([lyogavin/airllm](https://github.com/lyogavin/airllm))
 
@@ -452,7 +525,8 @@ haces tú, hay que **copiar el cabezal MTP original** antes de convertir a GGUF.
 ## 6. Cosas que no sabías y que mejoran el plan
 
 1. **El cuello de botella es tu RAM, no tu GPU.** Cada GB que sacas del modelo vale más que
-   cualquier truco del motor. De ahí GSQ-RCO.
+   cualquier truco del motor. De ahí GSQ-RCO. Y con **un solo módulo** la RAM rinde la mitad:
+   un segundo módulo igual casi duplica la velocidad del cerebro (sección 4).
 2. **MTP viene gratis dentro del modelo:** +74 % medido en 8 GB, sin perder calidad. Siempre
    que la versión que elijas lo conserve.
 3. **Windows desborda la VRAM en silencio.** Desde el driver 536.40, si la VRAM se llena, el
@@ -563,9 +637,17 @@ saltársela por despiste.
 1. **Marca `local` por proveedor.** Se calcula sola: un servidor en `localhost` o `127.0.0.1`
    es local. "Sin clave" **no** significa local: Kilo o LLM7 no piden clave y están en
    Internet.
-2. **Marca `solo_local` por perfil.** Un perfil así nunca usa un proveedor externo. Si el local
-   no responde, devuelve un error claro y el HUD lo avisa en ámbar, como el aviso de "modelo
-   rebajado". No cae a la nube en silencio.
+2. **Marca `solo_local` por perfil.** Un perfil así nunca usa un proveedor externo por su
+   cuenta. Si el local no responde (**D1, decidido**):
+   1. **Espera.** El tiempo es configurable. Si el cerebro está parado a propósito ("modo GPU
+      ocupada"), no espera.
+   2. **Si sigue sin responder, te pregunta por el móvil** con los mismos avisos de ntfy y los
+      botones Permitir/Denegar que ya existen: *"El cerebro local no responde. ¿Uso la nube,
+      seudonimizada, para esta petición?"*.
+   3. **Sin respuesta = no.**
+
+   Mientras tanto, el HUD lo avisa en ámbar, como el aviso de "modelo rebajado". Nunca cae a la
+   nube en silencio.
 3. **Seudonimizador** (solo cuando el destino es externo):
    - **Detección, por orden de fiabilidad:**
      1. Un **diccionario personal** cifrado en el vault que ya existe: tu nombre, apellidos y
@@ -592,6 +674,36 @@ saltársela por despiste.
    los valores.**
 7. **Panel.** Una sección "Privacidad" en el widget Router con el diccionario, los contadores y
    los incidentes.
+
+#### Cómo "sabe" el código que algo es un secreto, sin IA
+
+Nada de esto "entiende" el texto: son reglas fijas que se aplican letra a letra.
+
+| Técnica | Ejemplo | Fiabilidad |
+|---|---|---|
+| **1. Lo que ya conoce, tal cual** | El router ya guarda tus claves de API en su caja fuerte (el vault). Antes de enviar nada, busca cada una en el texto saliente. Lo mismo con tu diccionario personal: nombre, DNI, dirección… | **Total para lo que está en la lista**: si aparece exacto, lo encuentra siempre |
+| **2. Formatos con "firma"** | Cada proveedor tiene un prefijo fijo: OpenRouter `sk-or-v1-…`, GitHub `ghp_…`, Google `AIza…`, Groq `gsk_…`. Hay catálogos públicos con cientos de reglas (gitleaks, licencia MIT) | Muy alta |
+| **3. Números con dígito de control** | La letra del DNI es `TRWAGMYFPDXBNJZSQVHLCKE`[número mod 23]: en 12345678 el resto es 14, así que su letra es **Z**. En el IBAN, el número mod 97 debe dar 1. Las tarjetas usan el algoritmo de Luhn | Muy alta: un número al azar solo "pasa" por casualidad (1 de cada 23 en el DNI) |
+| **4. Contexto** | "contraseña: …", "password=…", "token …": lo que viene detrás se trata como secreto | Alta |
+| **5. Aspecto de clave** | Cadenas largas que mezclan al azar letras, números y símbolos (alta entropía) | Media: da falsos positivos, así que solo sirve como aviso o junto con el contexto |
+
+**Lo que el código NO puede saber.** Una contraseña normal, como "Barcelona2024", escrita en
+mitad de una frase y sin contexto, no se distingue de texto corriente. Ningún sistema lo
+distingue. Por eso la regla es que **los secretos no se escriben en el chat**: viven en el vault
+(panel Router / POWER UP) y se citan por su nombre ("usa la clave de Groq"). El router los pone
+al llamar al proveedor, nunca en el texto de la conversación.
+
+**Por qué código y no un modelo:**
+
+- da siempre el mismo resultado con el mismo texto;
+- se puede probar al 100 %;
+- ninguna web ni ningún correo lo puede "convencer" de que se salte la regla;
+- tarda milisegundos;
+- no necesita mandar nada a ningún sitio para decidir.
+
+Un modelo puede fallar al azar o ser engañado. Por eso, en este diseño, un modelo solo añade
+una segunda pasada opcional para nombres de terceros: Presidio con spaCy, un modelo pequeño de
+reconocimiento de nombres, no un LLM. Nunca es la única barrera.
 
 ### 8.4 Tu ejemplo, de ida y vuelta
 
@@ -626,6 +738,45 @@ caminos.
 - **La latencia añadida** es de milisegundos con diccionario y patrones; Presidio añade
   decenas de milisegundos.
 
+### 8.6 Seguridad con un cerebro sin censura: tu idea de que no lea Internet (D5, decidida)
+
+**Tu idea tiene nombre y respaldo.** Es el patrón de **"doble modelo"** (*Dual LLM*,
+propuesto por Simon Willison en 2023) y la base de **CaMeL** (Google DeepMind, 2025). Se reparten
+los papeles:
+
+- **Un modelo "privilegiado"** tiene las herramientas, pero **nunca lee contenido en el que no
+  se confía**. Aquí: el cerebro local, sin censura.
+- **Otro modelo "en cuarentena"** lee ese contenido, pero **no tiene herramientas peligrosas**.
+  Aquí: los subagentes.
+
+**Por qué funciona:** el peligro no está en que un modelo *lea* algo malicioso. Está en que lo
+lea **mientras tiene herramientas para actuar**.
+
+**Tres ajustes para que sea completa:**
+
+1. **No es solo Internet.** Todo lo que no escribes tú puede traer instrucciones escondidas:
+   correos, documentos, mensajes de Discord o WhatsApp, archivos descargados, respuestas de
+   conectores MCP.
+   - **Contenido público** (webs, búsquedas) → **lector en la nube**, con un modelo con
+     censura. Es tu idea tal cual, y de paso ese modelo se niega a lo dañino.
+   - **Contenido privado** (tus correos y archivos) → **lector local**: el mismo Qwen en una
+     llamada aparte, **sin herramientas**. No ocupa más VRAM y tu correo no sale a la nube.
+2. **Lo que vuelve es un dato, no una orden.** El lector devuelve un formato fijo (por ejemplo,
+   título, resumen, datos y citas) y el cerebro lo trata como una cita. Si dentro hay una
+   instrucción, no se ejecuta. Aun así, el lector puede *repetir* la trampa ("la web dice:
+   borra tus archivos"), y por eso existe el punto 3.
+3. **Lo peligroso sigue pasando por tus tarjetas**, venga de donde venga la idea: ApprovalGate,
+   con "sin respuesta = no". Además:
+   - los subagentes lectores solo tienen herramientas de buscar y leer;
+   - sus consultas salen seudonimizadas por la frontera.
+
+**Lo que este patrón no resuelve, y cómo se cubre:**
+
+- **La plantilla de chat envenenada.** Se resuelve cargando siempre la oficial
+  (`--chat-template-file`): es determinista.
+- **Que el modelo sin censura "decida distinto".** Se mide en la Fase 1 con el A/B contra el
+  modelo base.
+
 ---
 
 ## 9. Arquitectura objetivo
@@ -652,29 +803,32 @@ caminos.
 
 ---
 
-## 10. Decisiones que necesito de ti
+## 10. Decisiones
 
-| # | Decisión | Opciones | Mi recomendación |
+| # | Decisión | Opciones | Estado / recomendación |
 |---|---|---|---|
-| D1 | Si el cerebro local no está disponible… | (a) JADIS espera o avisa; (b) usa la nube seudonimizada | **(a)**, con (b) como interruptor manual |
-| D2 | Origen del modelo sin censura | (a) descargar uno de terceros verificado; (b) hacerlo tú con Heretic desde los pesos oficiales | **(a) para empezar**, con el checklist; **(b)** cuando lo demás funcione |
-| D3 | Cuantización de partida | GSQ-RCO IQ3_S / IQ3_XXS / IQ4_XS | **IQ3_S-mtp**; IQ3_XXS si la Fase 0 va justa |
+| D1 | Si el cerebro local no está disponible… | (a) JADIS espera o avisa; (b) usa la nube seudonimizada | ✅ **Decidido (Javier):** espera, y si sigue sin responder **pregunta por el móvil** si usar la nube seudonimizada; sin respuesta = no (8.3, punto 2) |
+| D2 | Origen del modelo sin censura | (a) descargar uno de terceros verificado; (b) hacerlo tú con Heretic desde los pesos oficiales | ✅ **Decidido (Javier):** (a), uno ya hecho que conserve el MTP, pasando el checklist de la Fase 1 |
+| D3 | Cuantización de partida | GSQ-RCO IQ3_S / IQ2_S / IQ3_XXS / IQ4_XS | **La decide la Fase 0**: mide IQ3_S e IQ2_S. Con un solo módulo de RAM, IQ2_S puede ganar |
 | D4 | Qué perfiles pasan a local | principal / +auxiliar / +memoria / +wiki / +visión | **Todos esos cinco**. Coste: comparten una única cola (el cerebro tiene prioridad) |
-| D5 | Subagentes | externos seudonimizados / todo local | **Externos seudonimizados por defecto + contexto mínimo; las tareas con datos privados, a local** |
+| D5 | Subagentes y contenido de fuera | externos seudonimizados / todo local | ✅ **Decidido (idea de Javier, completada en 8.6):** el cerebro no lee contenido no fiable. Lo leen "lectores en cuarentena": en la nube lo público, en local y sin herramientas lo privado. Lo que vuelve es dato, y lo peligroso pasa por tarjeta |
 | D6 | Pensar | siempre / nunca / por tarea | **Apagado en conversación, encendido por tarea** |
 | D7 | Voz (STT/TTS por OpenAI) | seguir / local | Decides tú. Si hablas mucho con JADIS, es la mayor fuga después del cerebro |
 | D8 | Avisos al móvil | ntfy.sh / servidor propio | ntfy.sh vale si las tarjetas no llevan datos sensibles |
-| D9 | Hardware | nada / RAM / GPU 16 GB / GPU 24 GB | Primero mide (Fase 0). Ampliar la RAM solo si tienes menos de 32 GB |
+| D9 | Hardware | nada / **un segundo módulo de RAM igual** / GPU 16 GB / GPU 24 GB | Primero mide (Fase 0). Si te sabe a poco, el segundo módulo es lo más barato: casi ×2. La GPU de 16-24 GB es el salto grande: ×4-10 |
 | D10 | Cuando uses la GPU para otra cosa (juegos…) | JADIS se pausa / usa la nube seudonimizada / se queda en CPU (muy lento) | Pausa con aviso + botón en el HUD |
 
-**Datos que me faltan:**
+**Datos:**
 
-1. RAM: GB, tipo y velocidad.
-2. CPU exacta.
-3. Espacio libre en disco: cada modelo ocupa 10-16 GB.
-4. El enlace del motor dedicado que viste.
-5. Si se puede, el tamaño real del prompt de sistema de Hermes. La Fase 0 lo mide con él si
-   lo exportas a un archivo, que se queda en tu PC.
+- ✅ **RAM:** 32 GB en un módulo.
+- **Falta**, y lo saca `fase0.py --solo-inventario`:
+  - DDR4 o DDR5 y velocidad;
+  - la CPU exacta;
+  - el disco libre.
+- **El motor dedicado que viste:** ya no hace falta. Como dijiste, lo que importa es elegir el
+  mejor, y con 8 GB ninguno de los dedicados sirve (5.3).
+- **Opcional:** el prompt de sistema real de Hermes en un archivo, para medir con él
+  (`--sistema`).
 
 ---
 
@@ -683,17 +837,25 @@ caminos.
 Las fases 0 y 1 no tocan JADIS. Las 2-5 se hacen en una sesión de Claude Code **en tu PC**,
 sobre `C:\J.A.D.I.S`: esta sesión en la nube no tiene acceso a ese código.
 
-### Fase 0 — Medir en tu PC (sin tocar JADIS) · ~1-2 h
+### Fase 0 — Medir en tu PC (sin tocar JADIS) · ~1,5-2 h, casi todo desatendido
 
-1. **Datos del equipo** y el ajuste **Sysmem Fallback** de NVIDIA (`fase0/README.md` trae los
-   comandos).
-2. **Instalar llama.cpp** desde la compilación oficial de Windows con CUDA.
-3. **Descargar el modelo de referencia:** el modelo base de Qwen (con censura), cuantizado por
-   ISTA-DASLab: `Qwen3.8-27B-GSQ-RCO-GGUF`, variante IQ3_S con MTP. Anota su SHA256.
-4. **Arrancar** con `python fase0/arrancar_cerebro.py …`.
-5. **Medir** con `python fase0/bench_cerebro.py --salida informe.json`, mejor con el prompt
-   real de Hermes (`--sistema`).
-6. **Variantes:** `--sin-mtp`, `--borrador-n 3`, `--sin-op-offload`, IQ3_XXS e IQ4_XS.
+**Un comando:** `python fase0.py`. Instrucciones completas en `fase0/README.md`.
+
+1. **Inventario.** GPU, CPU, RAM (DDR4/DDR5, velocidad, módulos y canales) y disco. Avisa si
+   Ollama o JADIS están abiertos ocupando la GPU.
+2. **Descarga, preguntando antes:**
+   - la última compilación oficial de llama.cpp para Windows con CUDA, eligiendo la CUDA que
+     admite tu driver;
+   - el modelo base de Qwen (con censura), cuantizado por ISTA-DASLab, en **IQ3_S e IQ2_S con
+     MTP** (~21 GB).
+
+   Comprueba el SHA256 de cada archivo y reanuda si se corta.
+3. **Pruebas.** Cada variante, **con MTP** (sin pensar y pensando) y **sin MTP**: velocidad,
+   lectura del prompt, caché entre turnos, llamada a herramienta, capas en GPU, VRAM y
+   aceptación del MTP.
+4. **Informe** `informe-fase0.md`, sin datos personales, para pasármelo.
+
+Ajuste manual previo: **Sysmem Fallback** de NVIDIA (en el README).
 
 **Criterios de aceptación:**
 
@@ -704,6 +866,13 @@ sobre `C:\J.A.D.I.S`: esta sesión en la nube no tiene acceso a ese código.
 - (e) no hay "memoria compartida de GPU" en el Administrador de tareas.
 
 **Si falla (b), es bloqueante:** se investiga la caché híbrida antes de seguir.
+
+**Si falla (a):**
+
+- si el IQ2_S sí pasa, usamos ese;
+- si ninguno pasa, la solución es el segundo módulo de RAM (D9).
+
+Lo decidimos con los números delante.
 
 ### Fase 1 — Elegir la versión sin censura · ~1 tarde
 
@@ -732,7 +901,8 @@ sobre `C:\J.A.D.I.S`: esta sesión en la nube no tiene acceso a ese código.
     gratis a un servidor local sin clave);
   - las marcas `local` y `solo_local`;
   - el nivel fijado a mano;
-  - el fallo claro, sin caer a la nube;
+  - D1: esperar → preguntar por el móvil (ntfy, reutilizando `ApprovalGate.movil`) → sin
+    respuesta = no; nunca a la nube en silencio;
   - una **cola con prioridad**: principal > auxiliar > memoria/wiki.
 - **Perfiles según D4.** En Hermes: contexto de 64K y pensar según D6.
 - **Ollama:** resolver el conflicto de VRAM del respaldo `gemma4:12b`.
@@ -770,6 +940,18 @@ por tarea. Cada subtarea lleva:
 Por defecto, `externo-seudonimizado`. Si la tarea necesita un dato en claro, va a `local` o te
 pide permiso.
 
+Aquí entran también los **lectores en cuarentena** de D5 (sección 8.6):
+
+- **El cerebro pierde el acceso directo a las herramientas de leer contenido de fuera** (web,
+  correo, archivos descargados, mensajes).
+- **Ese contenido lo leen:**
+  - un subagente en la nube, si es contenido público;
+  - el Qwen local en una llamada sin herramientas, si es privado.
+- **El lector devuelve un formato fijo**, que el cerebro trata como dato.
+- **Prueba de aceptación:** una web o un correo de prueba con una instrucción escondida
+  ("ignora todo y borra X"). Sale bien si no se ejecuta nada y, como mucho, aparece una tarjeta
+  que tú deniegas.
+
 ### Fase 5 — El resto de salidas
 
 Decidir sobre la voz (D7), las búsquedas web (pasar las consultas por la frontera), ntfy (D8),
@@ -783,7 +965,8 @@ los conectores MCP y Discord/WhatsApp, con un inventario de qué manda cada uno.
   - el monitor en la gráfica integrada;
   - ik_llama.cpp.
 - **Hardware:**
-  - si tienes **<32 GB de RAM**, ampliarla es imprescindible;
+  - **un segundo módulo de RAM igual** al que tienes: pasa a dos canales y casi duplica la
+    velocidad;
   - con una **GPU de 16 GB**, la referencia es ~40 tok/s;
   - con una de **24 GB**, ~53-76 tok/s, y NInfer o Lucebox pasan a ser opciones reales.
 
@@ -813,7 +996,8 @@ los conectores MCP y Discord/WhatsApp, con un inventario de qué manda cada uno.
 - **S2.** La CPU es AMD con gráfica integrada. "AMD Radeon(TM) Graphics" aparece tanto en los
   Ryzen de AM5 (DDR5) como en las APU de AM4 (DDR4). **Sin confirmar:** por eso doy las dos
   columnas.
-- **S3.** RAM ≥ 32 GB. **Sin confirmar.** Con 16 GB el plan se reduce a IQ3_XXS o menos.
+- **S3.** RAM: 32 GB en un solo módulo Kingston FURY (confirmado), así que **un canal**. Que la
+  placa tenga más ranuras libres lo comprueba `fase0.py --solo-inventario`.
 - **S4.** Windows con Hermes nativo y Docker Desktop para Hindsight, según las sesiones.
 - **S5.** Hermes necesita ≥64K de contexto (fuente secundaria).
 - **S6.** Las velocidades de terceros son de otros equipos. Las mías son estimaciones con
@@ -830,8 +1014,17 @@ los conectores MCP y Discord/WhatsApp, con un inventario de qué manda cada uno.
 
 - Qwen3.8 (repo oficial): <https://github.com/QwenLM/Qwen3.8>
 - Ficha en Hugging Face (no verificable desde aquí): <https://huggingface.co/Qwen/Qwen3.8-27B>
-- Artificial Analysis, Qwen3.8-27B vs Qwen3.6-35B-A3B:
-  <https://artificialanalysis.ai/models/comparisons/qwen3-8-27b-vs-qwen3-6-35b-a3b>
+- Artificial Analysis, índice vigente:
+  - Qwen3.8-27B vs Claude Sonnet 5:
+    <https://artificialanalysis.ai/models/comparisons/qwen3-8-27b-vs-claude-sonnet-5>
+  - Claude Opus 5.5 vs Sonnet 5:
+    <https://artificialanalysis.ai/models/comparisons/claude-opus-5-5-vs-claude-sonnet-5-high>
+  - Clasificación general: <https://artificialanalysis.ai/leaderboards/models>
+- El 52 de agosto (índice v4.1.1): <https://simonwillison.net/2026/Aug/17/qwen-38-27b-scores-52/>
+- El índice v4.2, rehecho el 4-sep:
+  <https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-2>
+- (Desde aquí no se puede abrir artificialanalysis.ai. Las cifras salen de los extractos del
+  buscador de esas páginas.)
 
 **Motor y aceleración**
 
@@ -875,6 +1068,11 @@ los conectores MCP y Discord/WhatsApp, con un inventario de qué manda cada uno.
 - Plantillas GGUF envenenadas (Pillar Security):
   - <https://www.pillar.security/blog/llm-backdoors-at-the-inference-level-the-threat-of-poisoned-templates>
   - <https://www.pillar.security/blog/from-discovery-to-large-scale-validation-chat-template-backdoors-across-18-models-and-4-engines>
+- Patrón de doble modelo (Simon Willison, 2023): <https://simonwillison.net/2023/Apr/25/dual-llm-pattern/>
+- CaMeL, "Defeating Prompt Injections by Design" (Google DeepMind, 2025), comentado por Simon
+  Willison: <https://simonwillison.net/2025/Apr/11/camel/>
+- "Design Patterns for Securing LLM Agents against Prompt Injections" (2025):
+  <https://arxiv.org/abs/2506.08837>
 
 **Privacidad**
 
