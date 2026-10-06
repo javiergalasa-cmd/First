@@ -15,7 +15,7 @@ estimaciones.
 | `fase0.py` | **Todo en un comando:** mira el equipo, descarga (preguntando antes), prueba y deja el informe |
 | `arrancar_cerebro.py` | Lanza `llama-server` con la configuración del plan (PLAN.md §7); también sirve suelto |
 | `bench_cerebro.py` | Mide la velocidad, el primer turno, la caché entre turnos, las herramientas y el pensar; también sirve suelto |
-| `tests/` | 55 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
+| `tests/` | 58 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
 
 Los scripts solo usan la **biblioteca estándar de Python** (3.9 o superior). Solo se conectan
 a Internet para descargar:
@@ -73,6 +73,10 @@ Hazlo cuando `--solo-descargar` te haya dado la ruta. Será algo como
 
 Hazlo solo para ese programa, no en "Configuración global": así no afecta a los juegos ni a otras
 aplicaciones.
+
+**El ajuste va ligado a esa ruta.** El script reutiliza siempre el `llama-server.exe` que ya
+tienes, para que no cambie. Solo baja otra versión si se lo pides con `--actualizar-llama`, y
+entonces hay que repetir este ajuste con la ruta nueva.
 
 **Para qué sirve:** si la VRAM se llena, `llama-server` dará un error en vez de seguir a la
 mitad de velocidad sin avisar.
@@ -150,13 +154,29 @@ tardan ~1-1,5 h. Puedes dejarlo trabajando; mientras tanto, mejor no usar la GPU
    - Si ya hay 1 GB o más ocupado, **conectar el monitor a la placa base** (la gráfica
      integrada del Ryzen) deja ese espacio al modelo.
    - Solo funciona si la placa tiene salida de vídeo y la integrada está activada en la BIOS.
-     Los juegos siguen usando la 4060.
+   - **No hace falta cambiar el cable para jugar.** Con el monitor en la placa, Windows 11 puede
+     hacer que el juego se calcule en la 4060 y solo la imagen pase por la placa:
+     *Configuración → Sistema → Pantalla → Gráficos* → el juego → *Alto rendimiento*.
+   - **El coste:** algún fotograma por segundo menos y algo más de latencia. Con algunas
+     combinaciones, G-Sync/FreeSync deja de funcionar. Pruébalo con un juego y decide; si no te
+     convence, conecta el monitor a la 4060 para jugar.
 
 ### Luego, la prueba automática
 
+**Desde la carpeta del kit**, no desde la tuya de usuario. Si no, Python responde
+`can't open file ... fase0.py`.
+
 ```powershell
+cd C:\jadis-cerebro\kit\cerebro-local\fase0
+git pull
 python fase0.py --exprimir
 ```
+
+- **Si `cd` dice que la carpeta no existe:** aún no has bajado el kit. Haz el `git clone` de
+  arriba.
+- **Antes de empezar:** el Administrador de tareas debería marcar **12 GB o más de RAM
+  "Disponible"**. Es donde va la parte del modelo que no cabe en la GPU. Con menos, Windows tira
+  del disco y las medidas salen mucho peores de lo real (el script avisa).
 
 Sobre la variante IQ3_S (o la que digas con `--variantes iq2_s`) prueba **un ajuste cada vez**
 frente a la configuración del plan, y mide cuánto genera y cuánto tarda en leer el prompt:

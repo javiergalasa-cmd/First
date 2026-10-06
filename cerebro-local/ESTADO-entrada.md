@@ -47,7 +47,7 @@ que lo pegue la sesión de JADIS en tu PC, o tú mismo.
     CaMeL).
 - **Fase 0 preparada**: `cerebro-local/fase0/fase0.py` hace inventario, descarga (llama.cpp
   oficial + Qwen3.8-27B GSQ-RCO IQ3_S e IQ2_S con MTP, SHA256 y reanudación) y pruebas con y sin
-  MTP. Deja `C:\jadis-cerebro\informe-fase0.md` sin datos personales. 55 tests con un
+  MTP. Deja `C:\jadis-cerebro\informe-fase0.md` sin datos personales. 58 tests con un
   llama-server simulado.
 - **Riesgo nº 1**: la caché de prompt de los modelos híbridos en llama.cpp. Si el principio del
   prompt cambia, relee todo cada turno. La Fase 0 lo mide.
@@ -69,7 +69,8 @@ N. **Cerebro local + frontera de privacidad** (plan del 6-oct, `cerebro-local/PL
    - Fase 2: integrar. Router con `local` y `solo_local`; D1 con espera y pregunta por ntfy;
      supervisor con "modo GPU ocupada"; cola con prioridad.
    - Fase 3: seudonimización + DLP en el router.
-   - Fase 4: delegar por defecto, paso directo de respuestas, reparto de D5.
+   - Fase 4: delegar por defecto, paso directo de respuestas, reparto de D5. Encargo listo en
+     `cerebro-local/ENCARGO-papel-del-cerebro.md`: 4a tras la Fase 2, 4b tras la Fase 3.
    - Fase 5: resto de salidas (voz, búsquedas, ntfy, MCP).
 
    Hardware: valorar un segundo módulo de RAM igual (dos canales).

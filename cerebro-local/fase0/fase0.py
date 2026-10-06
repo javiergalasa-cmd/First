@@ -82,6 +82,9 @@ BENCH_RAPIDO = ["--turnos", "2", "--pensar", "no", "--sin-herramientas", "--toke
 TIPOS_SMBIOS = {26: "DDR4", 34: "DDR5", 30: "LPDDR4", 35: "LPDDR5"}
 MARGEN_DISCO = 2 * 1024**3
 MINIMO_MODELO = 4 * 1024**3  # un 27B no baja de ~7 GB ni a 2 bits
+# El IQ3_S pesa ~11,8 GB y en 8 GB de VRAM caben ~6: el resto (~6 GB), la cache de prompts y los
+# buferes van a la RAM. Por debajo de esto, Windows empieza a paginar y las medidas no valen.
+RAM_DISPONIBLE_MINIMA_GB = 12
 
 
 def decir(texto: str = "") -> None:
@@ -189,11 +192,14 @@ def inventario(carpeta: str) -> dict:
         ranuras = _powershell_json("Get-CimInstance Win32_PhysicalMemoryArray | Select-Object MemoryDevices")
         placa = _powershell_json("Get-CimInstance Win32_BaseBoard | Select-Object Manufacturer,Product")
         graficas = _powershell_json("Get-CimInstance Win32_VideoController | Select-Object Name,DriverVersion")
+        sistema = _powershell_json("Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory")
         inv["cpu"] = (cpu or [{}])[0]
         inv["ram"] = resumir_ram(ram or [], max((int(r.get("MemoryDevices") or 0) for r in ranuras or []),
                                                 default=0) or None)
         inv["placa"] = (placa or [{}])[0]
         inv["graficas"] = [g.get("Name") for g in graficas or []]
+        libre_kb = int((sistema or [{}])[0].get("FreePhysicalMemory") or 0)
+        inv["ram_disponible_gb"] = round(libre_kb / 1024**2, 1) if libre_kb else None
     inv["nvidia"] = _nvidia_smi()
     os.makedirs(carpeta, exist_ok=True)
     inv["disco_libre_gb"] = round(shutil.disk_usage(carpeta).free / 1024**3, 1)
@@ -215,6 +221,12 @@ def avisos_inventario(inv: dict) -> list[str]:
         avisos.append(f"La RAM va a {va} MT/s pero es de {nominal}: activa el perfil XMP/EXPO (DOCP en placas "
                       f"ASUS) en la BIOS. Es gratis y sube hasta un {round((nominal / va - 1) * 100)}% la "
                       "velocidad de la parte del modelo que va en la CPU.")
+    disponible = inv.get("ram_disponible_gb")
+    if disponible is not None and disponible < RAM_DISPONIBLE_MINIMA_GB:
+        avisos.append(f"Solo hay {disponible} GB de RAM disponibles (lo que el Administrador de tareas llama "
+                      f"'Disponible'). La parte del modelo que no cabe en la GPU va a la RAM: con menos de "
+                      f"{RAM_DISPONIBLE_MINIMA_GB} GB, Windows puede tirar del disco y las medidas saldrian mucho "
+                      "mas lentas de lo real. Cierra el navegador, juegos y lo que no uses.")
     if ram.get("total_gb") and ram["total_gb"] < 32:
         avisos.append("Menos de 32 GB de RAM: solo caben las variantes pequenas (IQ2_S / IQ3_XXS).")
     usada = inv.get("nvidia", {}).get("memory.used")
@@ -423,6 +435,27 @@ def instalar_llama_cpp(eleccion: dict, carpeta: str) -> str:
     return exe
 
 
+def llama_cpp_instalado(carpeta: str) -> dict | None:
+    """El llama.cpp ya instalado mas reciente (completo, con su marca), o None.
+
+    Se reutiliza en vez de bajar la ultima version en cada ejecucion: llama.cpp publica varias al
+    dia, y cada una va a una carpeta distinta. Cambiar de version entre ejecuciones romperia el
+    ajuste del panel de NVIDIA (que apunta a la ruta del .exe) y mezclaria motores distintos al
+    comparar velocidades. --actualizar-llama baja la ultima a proposito."""
+    base = os.path.join(carpeta, "llama.cpp")
+    candidatos = []
+    for nombre in (os.listdir(base) if os.path.isdir(base) else []):
+        marca = os.path.join(base, nombre, ".instalado")
+        exe = buscar_archivo(os.path.join(base, nombre), "llama-server.exe")
+        if exe and os.path.exists(marca):
+            candidatos.append((os.path.getmtime(marca), nombre, exe))
+    if not candidatos:
+        return None
+    _, nombre, exe = max(candidatos)
+    tag, _, cuda = nombre.partition("-cuda-")
+    return {"tag": tag, "cuda": cuda, "exe": exe}
+
+
 def buscar_archivo(carpeta: str, nombre: str) -> str | None:
     for raiz, _, archivos in os.walk(carpeta):
         if nombre in archivos:
@@ -616,6 +649,7 @@ def informe_markdown(inv: dict, pruebas: list[dict], avisos: list[str]) -> str:
               f"ancho de banda teorico: {_v(ram.get('ancho_banda_teorico_gbs'))} GB/s",
               f"- Placa: {_v(placa.get('Manufacturer'))} {placa.get('Product') or ''}".rstrip(),
               f"- Graficas vistas por Windows: {_v(', '.join(g for g in inv.get('graficas') or [] if g))}",
+              f"- RAM disponible al empezar: {_v(inv.get('ram_disponible_gb'))} GB",
               f"- Disco libre en la carpeta de trabajo: {_v(inv.get('disco_libre_gb'))} GB", ""]
     if avisos:
         lineas += ["## Avisos", ""] + [f"- {a}" for a in avisos] + [""]
@@ -812,6 +846,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--exprimir", action="store_true",
                    help="prueba de velocidad: prueba ajustes uno a uno sobre la primera variante y recomienda")
     p.add_argument("--sin-dflash", action="store_true", help="con --exprimir, no bajar ni probar el borrador DFlash 2")
+    p.add_argument("--actualizar-llama", action="store_true",
+                   help="bajar la ultima version de llama.cpp aunque ya haya una instalada (cambia la ruta "
+                        "de llama-server.exe: hay que repetir el ajuste de NVIDIA)")
     p.add_argument("--repo-dflash", default=REPO_DFLASH, help="repo de Hugging Face del borrador DFlash 2")
     p.add_argument("--borrador-dflash", default=None, help="ruta a un borrador DFlash 2 ya descargado")
     return p
@@ -868,8 +905,10 @@ def main(argv: list[str] | None = None) -> int:
         dflash = a.borrador_dflash
     else:
         decir("\n== 2. Que hay que descargar ==")
+        instalado = None if a.actualizar_llama else llama_cpp_instalado(carpeta)
         try:
-            eleccion = elegir_llama_cpp(pedir_json(RELEASES_LLAMA), inv["nvidia"].get("cuda_max_driver"))
+            eleccion = None if instalado else elegir_llama_cpp(pedir_json(RELEASES_LLAMA),
+                                                               inv["nvidia"].get("cuda_max_driver"))
             arbol = listar_archivos_hf(a.repo)
             planes = [elegir_archivos_modelo(arbol, v) for v in variantes]
         except (urllib.error.URLError, OSError, RuntimeError, ValueError, KeyError) as e:
@@ -881,12 +920,16 @@ def main(argv: list[str] | None = None) -> int:
                 borrador = elegir_borrador(listar_archivos_hf(a.repo_dflash))
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, KeyError) as e:
                 decir(f"AVISO: no se probara DFlash 2 ({e})")
-        if eleccion["aviso"]:
+        if eleccion and eleccion["aviso"]:
             decir("AVISO: " + eleccion["aviso"])
         pendiente = sum(bytes_pendientes(os.path.join(carpeta, "descargas", z["name"]), z.get("size"))
-                        for z in eleccion["zips"])
-        decir(f"  llama.cpp {eleccion['tag']} (CUDA {eleccion['cuda']}): "
-              + ", ".join(z["name"] for z in eleccion["zips"]))
+                        for z in (eleccion["zips"] if eleccion else []))
+        if instalado:
+            decir(f"  llama.cpp {instalado['tag']} (CUDA {instalado['cuda']}): ya instalado, se reutiliza "
+                  "(--actualizar-llama baja la ultima version; luego hay que repetir el ajuste de NVIDIA)")
+        else:
+            decir(f"  llama.cpp {eleccion['tag']} (CUDA {eleccion['cuda']}): "
+                  + ", ".join(z["name"] for z in eleccion["zips"]))
         for plan in planes:
             for f in plan["archivos"]:
                 pendiente += bytes_pendientes(os.path.join(carpeta, "modelos", os.path.basename(f["ruta"])),
@@ -910,7 +953,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         try:
             decir("\n== 3. Descargando ==")
-            llama_server = instalar_llama_cpp(eleccion, carpeta)
+            llama_server = instalado["exe"] if instalado else instalar_llama_cpp(eleccion, carpeta)
             for plan in planes:
                 rutas = [descargar(f"https://huggingface.co/{a.repo}/resolve/main/"
                                    + urllib.parse.quote(f["ruta"]),
@@ -926,7 +969,8 @@ def main(argv: list[str] | None = None) -> int:
         except (urllib.error.URLError, OSError, RuntimeError, zipfile.BadZipFile) as e:
             decir(f"Fallo en la descarga: {e}. Vuelve a lanzar el mismo comando: reanuda donde se quedo.")
             return 1
-        informe["llama_cpp"] = {"tag": eleccion["tag"], "cuda": eleccion["cuda"]}
+        version = instalado or eleccion
+        informe["llama_cpp"] = {"tag": version["tag"], "cuda": version["cuda"]}
 
     if a.solo_descargar:
         guardar()

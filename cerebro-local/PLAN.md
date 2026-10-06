@@ -201,7 +201,8 @@ subagentes de la nube) son más listos, pero no son de fiar.
 4. **Revisa lo que le traen** y te responde.
 
 **La confianza la garantiza el código, no la "conciencia" del modelo.** La frontera del router,
-la comprobación de salida (DLP) y tus tarjetas de permiso funcionan aunque el modelo se
+la comprobación de salida (DLP), el **candado de procedencia** (un encargo que copie trozos de
+un correo o archivo tuyo no sale) y tus tarjetas de permiso funcionan aunque el modelo se
 equivoque. Lo que aporta el modelo es **criterio**: qué delegar y cómo pedirlo sin datos.
 
 **Lo que esto cambia en el plan:**
@@ -1004,8 +1005,9 @@ Lo decidimos con los números delante.
     gratis a un servidor local sin clave);
   - las marcas `local` y `solo_local`;
   - el nivel fijado a mano;
-  - D1: esperar → preguntar por el móvil (ntfy, reutilizando `ApprovalGate.movil`) → sin
-    respuesta = no; nunca a la nube en silencio;
+  - D1: esperar → preguntar a la vez en el PC (notificación de permiso de JADIS) y en el móvil
+    (ntfy, reutilizando `ApprovalGate.movil`), vale la primera respuesta → sin respuesta = no;
+    nunca a la nube en silencio;
   - una **cola con prioridad**: principal > auxiliar > memoria/wiki.
 - **Perfiles según D4.** En Hermes: contexto de 64K y pensar según D6.
 - **Ollama:** resolver el conflicto de VRAM del respaldo `gemma4:12b`.
@@ -1034,7 +1036,10 @@ Lo decidimos con los números delante.
 ### Fase 4 — El cerebro dirige: delegar por defecto, mandar lo mínimo
 
 Es el núcleo del principio de 2.1. Encaja con la "fase 2" ya aprobada del router: la
-herramienta de orquestación propia, con nivel por tarea.
+herramienta de orquestación propia, con nivel por tarea. **El encargo detallado (contratos,
+candado de procedencia, lectura en dos pasos, pruebas y texto para pegar en la sesión de JADIS)
+está en [`ENCARGO-papel-del-cerebro.md`](ENCARGO-papel-del-cerebro.md).** Se hace en dos pasos:
+4a después de la Fase 2 y 4b (lo seudonimizado) después de la Fase 3.
 
 **1. Delegar es lo normal y es barato.** La herramienta de orquestación es el camino por defecto
 del cerebro, no un extra. Cada encargo lleva:

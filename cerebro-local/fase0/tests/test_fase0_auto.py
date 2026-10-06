@@ -15,7 +15,9 @@ import stat
 import sys
 import tempfile
 import threading
+import time
 import unittest
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -121,6 +123,11 @@ class PruebasInventario(unittest.TestCase):
     def test_vram_ocupada_avisa(self):
         avisos = fase0.avisos_inventario({"ram": {}, "nvidia": {"memory.used": "3489"}})
         self.assertTrue(any("3489" in a for a in avisos))
+
+    def test_avisa_si_hay_poca_ram_disponible(self):
+        avisos = fase0.avisos_inventario({"ram": {}, "nvidia": {}, "ram_disponible_gb": 8.1})
+        self.assertTrue(any("8.1 GB de RAM disponibles" in a for a in avisos))
+        self.assertFalse(fase0.avisos_inventario({"ram": {}, "nvidia": {}, "ram_disponible_gb": 20.0}))
 
     def test_avisa_si_ollama_o_jadis_estan_abiertos(self):
         avisos = fase0.avisos_inventario({"ram": {}, "nvidia": {}, "abiertos": ["Ollama"]})
@@ -354,6 +361,45 @@ class PruebasEjecucionCompleta(unittest.TestCase):
             r = fase0.probar("x", FALSO, "m.gguf", [], [], tempfile.mkdtemp(), puerto, 5)
         self.assertIn("ocupado", r["error"])
 
+    def test_reutiliza_el_llama_cpp_instalado(self):
+        carpeta = tempfile.mkdtemp()
+        self.assertIsNone(fase0.llama_cpp_instalado(carpeta))
+        for tag, completo in (("b9001", True), ("b9002", False), ("b8999", True)):
+            destino = os.path.join(carpeta, "llama.cpp", f"{tag}-cuda-12.4")
+            os.makedirs(destino)
+            open(os.path.join(destino, "llama-server.exe"), "w").close()
+            if completo:
+                with open(os.path.join(destino, ".instalado"), "w") as f:
+                    f.write("zip")
+            time.sleep(0.05)
+        r = fase0.llama_cpp_instalado(carpeta)
+        self.assertEqual((r["tag"], r["cuda"]), ("b8999", "12.4"),
+                         "el mas reciente de los completos; b9002 no tiene marca (zip a medias)")
+        self.assertTrue(r["exe"].endswith("llama-server.exe"))
+
+    def test_no_pregunta_a_github_si_ya_hay_llama_cpp(self):
+        carpeta = tempfile.mkdtemp()
+        destino = os.path.join(carpeta, "llama.cpp", "b9001-cuda-12.4")
+        os.makedirs(destino)
+        open(os.path.join(destino, "llama-server.exe"), "w").close()
+        with open(os.path.join(destino, ".instalado"), "w") as f:
+            f.write("zip")
+        urls = []
+
+        def falso(url, timeout=60):
+            urls.append(url)
+            raise urllib.error.URLError("sin red en la prueba")
+
+        original = fase0.pedir_json
+        fase0.pedir_json = falso
+        try:
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                fase0.main(["--carpeta", carpeta, "--si"])
+        finally:
+            fase0.pedir_json = original
+        self.assertFalse(any("llama.cpp/releases" in u for u in urls), urls)
+
     def test_solo_inventario_no_descarga(self):
         tmp = tempfile.mkdtemp()
         with contextlib.redirect_stdout(io.StringIO()):
@@ -364,10 +410,6 @@ class PruebasEjecucionCompleta(unittest.TestCase):
     def test_nombre_desconocido(self):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(fase0.main(["--carpeta", tempfile.mkdtemp(), "--variantes", "q9"]), 2)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PruebasVelocidad(unittest.TestCase):
@@ -448,3 +490,7 @@ class PruebasVelocidad(unittest.TestCase):
         self.assertEqual(codigo, 0)
         with open(os.path.join(tmp, "w", "informe-velocidad.md"), encoding="utf-8") as f:
             self.assertIn("Prueba de velocidad", f.read())
+
+
+if __name__ == "__main__":
+    unittest.main()
