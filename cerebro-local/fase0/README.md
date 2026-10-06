@@ -15,7 +15,7 @@ estimaciones.
 | `fase0.py` | **Todo en un comando:** mira el equipo, descarga (preguntando antes), prueba y deja el informe |
 | `arrancar_cerebro.py` | Lanza `llama-server` con la configuración del plan (PLAN.md §7); también sirve suelto |
 | `bench_cerebro.py` | Mide la velocidad, el primer turno, la caché entre turnos, las herramientas y el pensar; también sirve suelto |
-| `tests/` | 49 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
+| `tests/` | 55 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
 
 Los scripts solo usan la **biblioteca estándar de Python** (3.9 o superior). Solo se conectan
 a Internet para descargar:
@@ -30,15 +30,11 @@ Las pruebas hablan únicamente con `127.0.0.1`.
 
 1. **Cierra lo que use la GPU:** JADIS, Ollama, juegos y el navegador si tiene muchas pestañas.
    El script avisa si encuentra a Ollama o JADIS abiertos, o la VRAM ocupada.
-2. **Ajuste de NVIDIA** (evita que vaya lento sin avisar): *Panel de control de NVIDIA →
-   Administrar configuración 3D → Configuración de programa*.
-   - Añade `llama-server.exe` cuando lo hayas descargado; lo encontrarás en
-     `C:\jadis-cerebro\llama.cpp\...`.
-   - Pon **CUDA - Sysmem Fallback Policy = Prefer No Sysmem Fallback**.
-   - Hazlo solo para ese programa, no en la configuración global.
-   - Si te lo saltas, el informe lo deja ver igualmente, pero las medidas pueden salir peores.
-3. **Comprueba que tienes Python:** `python --version` debe dar 3.9 o más.
-4. **Espacio:** ~25 GB libres. Los dos modelos de prueba ocupan 21 GB; llama.cpp, menos de 1 GB.
+2. **Comprueba que tienes Python:** `python --version` debe dar 3.9 o más.
+3. **Espacio:** ~25 GB libres. Los dos modelos de prueba ocupan 21 GB; llama.cpp, menos de 1 GB.
+
+El ajuste de NVIDIA va **después de descargar** (paso intermedio de la opción A): el programa
+que hay que elegir en el panel, `llama-server.exe`, todavía no existe en tu PC hasta entonces.
 
 ## Opción A: un solo comando (recomendada)
 
@@ -49,12 +45,40 @@ git clone -b claude/magical-darwin-gcbo0m https://github.com/javiergalasa-cmd/Fi
 cd C:\jadis-cerebro\kit\cerebro-local\fase0
 
 python fase0.py --solo-inventario   # ~10 s, no descarga nada
-python fase0.py                     # todo; antes de descargar enseña qué y cuánto, y pregunta
+python fase0.py --solo-descargar    # baja todo y te dice la ruta de llama-server.exe
+#   -> aquí haces el ajuste de NVIDIA de abajo, con esa ruta
+python fase0.py                     # pruebas (ya no descarga nada)
 ```
+
+Si ya lo clonaste antes, actualízalo con `git pull` dentro de `C:\jadis-cerebro\kit`.
 
 Si no quieres usar git, descarga el zip de la rama, descomprímelo y entra en
 `cerebro-local\fase0`:
 <https://github.com/javiergalasa-cmd/First/archive/refs/heads/claude/magical-darwin-gcbo0m.zip>
+
+### El ajuste de NVIDIA, paso a paso
+
+Hazlo cuando `--solo-descargar` te haya dado la ruta. Será algo como
+`C:\jadis-cerebro\llama.cpp\b…-cuda-…\llama-server.exe`.
+
+1. *Panel de control de NVIDIA → Administrar la configuración 3D →* pestaña **Configuración de
+   programa**.
+2. En "1. Seleccione un programa para personalizar", pulsa **Agregar**. `llama-server.exe` no
+   saldrá en la lista: pulsa **Examinar…**, ve a la ruta que te dio el script, elige
+   **`llama-server.exe`** y pulsa **Agregar programa seleccionado**.
+3. En "2. Especifique la configuración", busca la línea que empieza por **"CUDA -"** y habla de
+   **Sysmem Fallback**. Según la versión puede salir traducida, como "memoria del sistema". Elige
+   **Prefer No Sysmem Fallback**.
+4. **Aplicar.**
+
+Hazlo solo para ese programa, no en "Configuración global": así no afecta a los juegos ni a otras
+aplicaciones.
+
+**Para qué sirve:** si la VRAM se llena, `llama-server` dará un error en vez de seguir a la
+mitad de velocidad sin avisar.
+
+**Si te lía, sáltatelo.** `--fit` ya deja 1 GB libre de margen, así que es un seguro, no algo
+imprescindible.
 
 **Qué hace `python fase0.py`:**
 
@@ -96,6 +120,65 @@ tardan ~1-1,5 h. Puedes dejarlo trabajando; mientras tanto, mejor no usar la GPU
 | Otra carpeta u otro disco | `python fase0.py --carpeta D:\jadis-cerebro` |
 | Ya tengo llama.cpp y el modelo | `python fase0.py --sin-descargas --llama-server C:\llama\llama-server.exe --modelo D:\m.gguf` |
 | Sin preguntar (lo lanza otro programa) | añade `--si` |
+
+## Prueba de velocidad: ¿se puede sacar más?
+
+### Primero, dos comprobaciones gratis (2 minutos, sin instalar nada)
+
+1. **¿Tu RAM va a la velocidad para la que está hecha?**
+   - Mira en *Administrador de tareas → Rendimiento → Memoria* la **"Velocidad"** y las
+     **"Ranuras usadas"**.
+   - Compárala con la del módulo, que viene en su etiqueta o en su referencia:
+
+     | Referencia | Velocidad |
+     |---|---|
+     | `KF432…` | 3200 |
+     | `KF436…` | 3600 |
+     | `KF556…` | 5600 |
+     | `KF560…` | 6000 |
+
+   - Si Windows dice menos (por ejemplo 2133 o 2400 en un módulo de 3200, o 4800 en uno de
+     6000), **falta activar el perfil en la BIOS**. En ASUS: al encender, pulsa *Supr* → en
+     *EZ Mode* activa **D.O.C.P.** (o EXPO) → *F10* para guardar.
+   - Es gratis y acelera justo la parte que frena al cerebro.
+   - Si después el PC se cuelga o no arranca, desactívalo de nuevo. Muchas placas lo deshacen
+     solas tras varios arranques fallidos.
+   - `fase0.py --solo-inventario` también lo detecta y avisa.
+2. **¿Cuánta VRAM se come el escritorio?**
+   - Con todo cerrado, mira en *Administrador de tareas → Rendimiento → GPU (la NVIDIA)* la
+     **"Memoria dedicada de GPU"**.
+   - Si ya hay 1 GB o más ocupado, **conectar el monitor a la placa base** (la gráfica
+     integrada del Ryzen) deja ese espacio al modelo.
+   - Solo funciona si la placa tiene salida de vídeo y la integrada está activada en la BIOS.
+     Los juegos siguen usando la 4060.
+
+### Luego, la prueba automática
+
+```powershell
+python fase0.py --exprimir
+```
+
+Sobre la variante IQ3_S (o la que digas con `--variantes iq2_s`) prueba **un ajuste cada vez**
+frente a la configuración del plan, y mide cuánto genera y cuánto tarda en leer el prompt:
+
+| Qué prueba | Ajustes |
+|---|---|
+| El borrador | MTP con 1, 2 o 3 tokens; o **DFlash 2**, un borrador aparte que baja ~1 GB más (`--sin-dflash` lo salta) |
+| Los hilos de CPU | uno por núcleo, o la mitad |
+| El margen de VRAM | 512 MiB libres en vez de 1024: caben más capas en la GPU |
+| La lectura del prompt | bloques de 2048; sin subir capas a la GPU al leer |
+| La caché KV a 4 bits | **esta sí cuesta algo de precisión**: sale en el informe, pero no la elige sola |
+
+**Qué hace con los resultados:**
+- Se queda con los ajustes que ganan sin coste de calidad: un 5 % o más al generar, o un 10 % o
+  más al leer sin empeorar al generar.
+- Prueba esos ganadores **combinados**.
+- Te da el **comando recomendado** para arrancar el cerebro.
+
+Tarda **~30-40 min** y deja `C:\jadis-cerebro\informe-velocidad.md`.
+
+**Repítela después de cada cambio** (activar D.O.C.P., mover el monitor, un segundo módulo de
+RAM) para ver el efecto real con tus números. Las diferencias de menos de ~5 % son ruido.
 
 ## Opción B: paso a paso, a mano
 

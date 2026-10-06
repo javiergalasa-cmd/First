@@ -46,6 +46,7 @@ import arrancar_cerebro  # noqa: E402
 import bench_cerebro  # noqa: E402
 
 REPO_MODELO = "ISTA-DASLab/Qwen3.8-27B-GSQ-RCO-GGUF"
+REPO_DFLASH = "z-lab/Qwen3.8-27B-DFlash2-GGUF"  # borrador DFlash 2 para Qwen3.8-27B (opcional)
 RELEASES_LLAMA = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 AGENTE = "jadis-fase0/1.0"
 VARIANTES = {  # nombre -> cuantizacion que debe aparecer en el nombre del archivo
@@ -57,6 +58,27 @@ CONFIGS = {  # nombre -> (opciones de arrancar_cerebro, opciones de bench_cerebr
     "mtp3": (["--borrador-n", "3"], ["--pensar", "no"]),
     "sin-mtp": (["--sin-mtp"], ["--pensar", "no"]),
 }
+# Ajustes que prueba --exprimir. Cada uno cambia UNA cosa respecto a "base".
+# (nombre, opciones de arrancar_cerebro, grupo excluyente, coste en calidad, que hace)
+AJUSTES = [
+    ("base", ["--borrador-n", "2"], None, "ninguno", "la configuracion del plan (MTP con 2 tokens)"),
+    ("sin-mtp", ["--sin-mtp"], "borrador", "ninguno", "referencia: sin decodificacion especulativa"),
+    ("mtp1", ["--borrador-n", "1"], "borrador", "ninguno", "MTP con 1 token de borrador"),
+    ("mtp3", ["--borrador-n", "3"], "borrador", "ninguno", "MTP con 3 tokens de borrador"),
+    ("dflash", ["--dflash", "{dflash}", "--borrador-n", "7"], "borrador", "ninguno",
+     "borrador DFlash 2 (~1 GB en la GPU) en vez del cabezal MTP"),
+    ("hilos-nucleos", ["--hilos", "{nucleos}"], "hilos", "ninguno", "un hilo de CPU por nucleo fisico"),
+    ("hilos-mitad", ["--hilos", "{mitad}"], "hilos", "ninguno", "la mitad de hilos (menos atascos en la RAM)"),
+    ("margen-512", ["--fit-target", "512"], "margen", "ninguno",
+     "deja 512 MiB libres en la GPU en vez de 1024: caben mas capas"),
+    ("ubatch-2048", ["--ubatch", "2048"], "ubatch", "ninguno",
+     "lee el prompt en bloques de 2048 (menos viajes por el PCIe, mas VRAM de trabajo)"),
+    ("sin-op-offload", ["--sin-op-offload"], "op", "ninguno", "no sube capas de la CPU a la GPU al leer el prompt"),
+    ("kv-q4", ["--cache-k", "q4_0", "--cache-v", "q4_0"], "kv", "pequeno",
+     "cache KV a 4 bits: libera VRAM para mas capas, pierde algo de precision"),
+]
+BENCH_RAPIDO = ["--turnos", "2", "--pensar", "no", "--sin-herramientas", "--tokens-sistema", "4000",
+                "--max-tokens", "200"]
 TIPOS_SMBIOS = {26: "DDR4", 34: "DDR5", 30: "LPDDR4", 35: "LPDDR5"}
 MARGEN_DISCO = 2 * 1024**3
 MINIMO_MODELO = 4 * 1024**3  # un 27B no baja de ~7 GB ni a 2 bits
@@ -299,6 +321,26 @@ def elegir_archivos_modelo(arbol: list[dict], variante: str, exigir_mtp: bool = 
         raise RuntimeError(f"{archivos[0]['ruta']} ocupa {total / 1024**3:.1f} GB: parece solo el cabezal "
                            "MTP, no el modelo completo. Revisa el repo.")
     return {"variante": variante, "mtp": mtp, "aviso": aviso, "archivos": archivos}
+
+
+def elegir_borrador(arbol: list[dict]) -> dict:
+    """Elige el GGUF del borrador DFlash 2: prefiere Q4_K_M (~1,1 GB), si no Q8_0, si no el mas pequeno."""
+    ggufs = [f for f in arbol if f.get("type", "file") == "file" and f["path"].lower().endswith(".gguf")
+             and "mmproj" not in f["path"].lower()]
+    if not ggufs:
+        raise RuntimeError("El repo del borrador DFlash no tiene archivos .gguf")
+
+    def tam(f):
+        return (f.get("lfs") or {}).get("size") or f.get("size") or 0
+
+    for cuant in ("Q4_K_M", "Q8_0"):
+        candidatos = [f for f in ggufs if cuant.lower() in os.path.basename(f["path"]).lower()]
+        if candidatos:
+            elegido = min(candidatos, key=tam)
+            break
+    else:
+        elegido = min(ggufs, key=tam)
+    return {"ruta": elegido["path"], "tam": tam(elegido) or None, "sha256": (elegido.get("lfs") or {}).get("oid")}
 
 
 def sha256_de(ruta: str) -> str:
@@ -598,6 +640,139 @@ def informe_markdown(inv: dict, pruebas: list[dict], avisos: list[str]) -> str:
     return "\n".join(lineas)
 
 
+# --------------------------------------------------------------------------- prueba de velocidad
+
+def resolver_ajustes(inv: dict, dflash: str | None) -> list[tuple]:
+    """Rellena {nucleos}, {mitad} y {dflash}; quita los ajustes que no se pueden probar en este PC."""
+    nucleos = int((inv.get("cpu") or {}).get("NumberOfCores") or 0) or (os.cpu_count() or 0) // 2 or None
+    valores = {"nucleos": nucleos, "mitad": max(1, nucleos // 2) if nucleos else None, "dflash": dflash}
+    resueltos = []
+    for nombre, opciones, grupo, coste, que in AJUSTES:
+        if any(not valores.get(k) for k in re.findall(r"\{(\w+)\}", " ".join(opciones))):
+            continue
+        resueltos.append((nombre, [o.format(**valores) for o in opciones], grupo, coste, que))
+    return resueltos
+
+
+def medir_ajuste(r: dict) -> dict:
+    s = resumen_prueba(r)
+    return {"genera": s["genera_tok_s"], "lee": s["lee_tok_s"], "capas": r.get("capas_gpu"),
+            "vram": r.get("vram_cargado_mib"), "aceptacion": s["aceptacion_mtp"],
+            "error": r.get("error") if not s["genera_tok_s"] else None}
+
+
+def ganancia(valor, base) -> float | None:
+    return None if not valor or not base else round((valor / base - 1) * 100, 1)
+
+
+def elegir_ganadores(resultados: dict, ajustes: list[tuple]) -> list[str]:
+    """Ajustes sin coste de calidad que mejoran a 'base' (>= 5 % al generar, o >= 10 % al leer el prompt
+    sin empeorar la generacion). De cada grupo excluyente se queda el mejor."""
+    base = resultados.get("base") or {}
+    mejores: dict = {}
+    for nombre, _, grupo, coste, _ in ajustes:
+        r = resultados.get(nombre) or {}
+        if nombre == "base" or coste != "ninguno" or r.get("error"):
+            continue
+        g_gen, g_lee = ganancia(r.get("genera"), base.get("genera")), ganancia(r.get("lee"), base.get("lee"))
+        if g_gen is None:
+            continue
+        if not ((g_gen >= 5 and (g_lee is None or g_lee >= -30)) or (g_lee is not None and g_lee >= 10 and g_gen >= -5)):
+            continue
+        puntos = g_gen + 0.1 * (g_lee or 0)  # lo que mas cuenta es generar
+        if grupo not in mejores or puntos > mejores[grupo][1]:
+            mejores[grupo] = (nombre, puntos)
+    return [nombre for nombre, _ in mejores.values()]
+
+
+def opciones_de(nombres: list[str], ajustes: list[tuple]) -> list[str]:
+    por_nombre = {n: o for n, o, *_ in ajustes}
+    opciones = list(por_nombre["base"])
+    for n in nombres:
+        opciones += por_nombre[n]
+    return opciones
+
+
+def exprimir(inv: dict, llama_server: str, modelo: str, dflash: str | None, carpeta: str, puerto: int,
+             limite_carga: float) -> dict:
+    """Prueba cada ajuste por separado, elige los que ganan y prueba su combinacion."""
+    ajustes = resolver_ajustes(inv, dflash)
+    salida: dict = {"modelo": os.path.basename(modelo), "ajustes": [], "resultados": {}, "pruebas": []}
+    for nombre, opciones, grupo, coste, que in ajustes:
+        decir(f"-- ajuste '{nombre}': {que}")
+        r = probar(f"velocidad-{nombre}", llama_server, modelo, opciones, BENCH_RAPIDO, carpeta, puerto,
+                   limite_carga)
+        salida["pruebas"].append(r)
+        salida["resultados"][nombre] = medir_ajuste(r)
+        salida["ajustes"].append({"nombre": nombre, "grupo": grupo, "coste": coste, "que": que})
+        if nombre == "base" and salida["resultados"]["base"]["error"]:
+            salida["error"] = "la configuracion base no funciono: " + str(salida["resultados"]["base"]["error"])
+            return salida
+    ganadores = elegir_ganadores(salida["resultados"], ajustes)
+    salida["ganadores"] = ganadores
+    recomendadas = opciones_de([], ajustes)
+    if ganadores:
+        mejor = max(ganadores, key=lambda n: salida["resultados"][n]["genera"] or 0)
+        recomendadas = opciones_de([mejor], ajustes)
+        if len(ganadores) >= 2:
+            decir(f"-- combinando los ganadores: {', '.join(ganadores)}")
+            r = probar("velocidad-combinada", llama_server, modelo, opciones_de(ganadores, ajustes),
+                       BENCH_RAPIDO, carpeta, puerto, limite_carga)
+            salida["pruebas"].append(r)
+            salida["combinada"] = medir_ajuste(r)
+            if (salida["combinada"]["genera"] or 0) >= (salida["resultados"][mejor]["genera"] or 0):
+                recomendadas = opciones_de(ganadores, ajustes)
+    salida["opciones_recomendadas"] = [("<borrador DFlash>" if dflash and o == dflash else o) for o in recomendadas]
+    return salida
+
+
+def informe_velocidad(inv: dict, s: dict) -> str:
+    base = (s.get("resultados") or {}).get("base") or {}
+    ram = inv.get("ram") or {}
+    lineas = ["# Prueba de velocidad del cerebro local", "",
+              f"Modelo: `{s.get('modelo')}`. Generado: {time.strftime('%Y-%m-%d %H:%M')}. "
+              f"RAM: {_v(ram.get('tipo'))}-{_v(ram.get('velocidad_mts'))} en {_v(ram.get('modulos'))} modulo(s).", "",
+              "Cada ajuste cambia **una sola cosa** respecto a `base`. Diferencias por debajo de ~5 % son ruido "
+              "(repite la prueba si dudas).", "",
+              "| Ajuste | Que cambia | Coste en calidad | Genera (tok/s) | vs base | Lee prompt (tok/s) | vs base "
+              "| Capas en GPU | VRAM (MiB) | Aceptacion borrador |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
+    for aj in s.get("ajustes", []):
+        r = s["resultados"].get(aj["nombre"], {})
+        if r.get("error"):
+            lineas.append(f"| {aj['nombre']} | {aj['que']} | {aj['coste']} | ERROR: {str(r['error'])[:80]} |"
+                          "  |  |  |  |  |  |")
+            continue
+        g_gen, g_lee = ganancia(r.get("genera"), base.get("genera")), ganancia(r.get("lee"), base.get("lee"))
+        fmt = (lambda g: "-" if g is None or aj["nombre"] == "base" else f"{g:+.0f} %")
+        lineas.append(f"| {aj['nombre']} | {aj['que']} | {aj['coste']} | {_v(r.get('genera'))} | {fmt(g_gen)} | "
+                      f"{_v(r.get('lee'))} | {fmt(g_lee)} | {_v(r.get('capas'))} | {_v(r.get('vram'))} | "
+                      f"{'-' if r.get('aceptacion') is None else r['aceptacion']} |")
+    lineas += ["", "## Resultado", ""]
+    if s.get("error"):
+        lineas.append(f"- No se pudo completar: {s['error']}")
+    else:
+        lineas.append("- Ajustes que ganan sin coste de calidad: "
+                      + (", ".join(f"`{g}`" for g in s.get("ganadores", [])) or "ninguno (la base ya es lo mejor)"))
+        if s.get("combinada"):
+            c = s["combinada"]
+            lineas.append(f"- Combinacion de ganadores: genera {_v(c.get('genera'))} tok/s "
+                          f"({ganancia(c.get('genera'), base.get('genera'))} % frente a base)")
+        lineas.append("- Comando recomendado: `python arrancar_cerebro.py --modelo <tu modelo> "
+                      + " ".join(s.get("opciones_recomendadas", [])) + "`")
+        kv = s["resultados"].get("kv-q4") or {}
+        if kv.get("genera") and base.get("genera"):
+            lineas.append(f"- Con coste de calidad: `kv-q4` da {ganancia(kv['genera'], base['genera'])} % al generar. "
+                          "Solo si aceptas perder algo de precision en conversaciones largas.")
+    lineas += ["", "## Lo que este script no puede probar solo", "",
+               "- **XMP/EXPO (DOCP en ASUS)**: si el inventario avisa de que la RAM va por debajo de su velocidad, "
+               "activalo en la BIOS y repite la prueba.",
+               "- **Monitor en la grafica integrada**: libera VRAM de la 4060 para mas capas; repite la prueba "
+               "despues y compara la columna 'Capas en GPU'.",
+               "- **Segundo modulo de RAM igual**: pasa a dos canales; es el salto mas grande sin cambiar de GPU.", ""]
+    return "\n".join(lineas)
+
+
 # --------------------------------------------------------------------------- principal
 
 def carpeta_por_defecto() -> str:
@@ -632,6 +807,13 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--sistema", default=None, help="archivo con el prompt de sistema real de Hermes")
     p.add_argument("--limite-carga", type=float, default=900, help="segundos maximos para cargar el modelo")
     p.add_argument("--si", action="store_true", help="no preguntar antes de descargar")
+    p.add_argument("--solo-descargar", action="store_true",
+                   help="descarga, dice donde ha quedado llama-server.exe (para el panel de NVIDIA) y para")
+    p.add_argument("--exprimir", action="store_true",
+                   help="prueba de velocidad: prueba ajustes uno a uno sobre la primera variante y recomienda")
+    p.add_argument("--sin-dflash", action="store_true", help="con --exprimir, no bajar ni probar el borrador DFlash 2")
+    p.add_argument("--repo-dflash", default=REPO_DFLASH, help="repo de Hugging Face del borrador DFlash 2")
+    p.add_argument("--borrador-dflash", default=None, help="ruta a un borrador DFlash 2 ya descargado")
     return p
 
 
@@ -671,8 +853,11 @@ def main(argv: list[str] | None = None) -> int:
         if nombre not in VARIANTES and nombre not in CONFIGS:
             decir(f"No conozco '{nombre}'. Variantes: {', '.join(VARIANTES)}. Pruebas: {', '.join(CONFIGS)}")
             return 2
+    if a.exprimir:
+        variantes = variantes[:1]  # la prueba de velocidad se hace sobre una sola variante
 
     modelos: list[tuple[str, str, bool]] = []  # (nombre, ruta, lleva_mtp)
+    dflash: str | None = None
     if a.sin_descargas:
         if not a.llama_server or not a.modelo:
             decir("Con --sin-descargas hacen falta --llama-server y al menos un --modelo")
@@ -680,6 +865,7 @@ def main(argv: list[str] | None = None) -> int:
         llama_server = a.llama_server
         modelos = [(os.path.splitext(os.path.basename(m))[0], m, "mtp" in os.path.basename(m).lower())
                    for m in a.modelo]
+        dflash = a.borrador_dflash
     else:
         decir("\n== 2. Que hay que descargar ==")
         try:
@@ -689,6 +875,12 @@ def main(argv: list[str] | None = None) -> int:
         except (urllib.error.URLError, OSError, RuntimeError, ValueError, KeyError) as e:
             decir(f"No pude preparar las descargas: {e}")
             return 1
+        borrador = None
+        if a.exprimir and not a.sin_dflash:
+            try:
+                borrador = elegir_borrador(listar_archivos_hf(a.repo_dflash))
+            except (urllib.error.URLError, OSError, RuntimeError, ValueError, KeyError) as e:
+                decir(f"AVISO: no se probara DFlash 2 ({e})")
         if eleccion["aviso"]:
             decir("AVISO: " + eleccion["aviso"])
         pendiente = sum(bytes_pendientes(os.path.join(carpeta, "descargas", z["name"]), z.get("size"))
@@ -702,6 +894,11 @@ def main(argv: list[str] | None = None) -> int:
                 decir(f"  {a.repo}: {f['ruta']} ({(f['tam'] or 0) / 1024**3:.1f} GB)")
             if plan["aviso"]:
                 decir("  AVISO: " + plan["aviso"])
+        if borrador:
+            pendiente += bytes_pendientes(os.path.join(carpeta, "modelos", os.path.basename(borrador["ruta"])),
+                                          borrador["tam"])
+            decir(f"  {a.repo_dflash}: {borrador['ruta']} ({(borrador['tam'] or 0) / 1024**3:.1f} GB, "
+                  "borrador DFlash 2)")
         libre = shutil.disk_usage(carpeta).free
         decir(f"  Falta por bajar: {pendiente / 1024**3:.1f} GB | libre en {carpeta}: {libre / 1024**3:.1f} GB")
         if libre < pendiente + MARGEN_DISCO:
@@ -721,15 +918,40 @@ def main(argv: list[str] | None = None) -> int:
                                    f["tam"], f["sha256"])
                          for f in plan["archivos"]]
                 modelos.append((plan["variante"], rutas[0], plan["mtp"]))
+            if borrador:
+                dflash = descargar(f"https://huggingface.co/{a.repo_dflash}/resolve/main/"
+                                   + urllib.parse.quote(borrador["ruta"]),
+                                   os.path.join(carpeta, "modelos", os.path.basename(borrador["ruta"])),
+                                   borrador["tam"], borrador["sha256"])
         except (urllib.error.URLError, OSError, RuntimeError, zipfile.BadZipFile) as e:
             decir(f"Fallo en la descarga: {e}. Vuelve a lanzar el mismo comando: reanuda donde se quedo.")
             return 1
         informe["llama_cpp"] = {"tag": eleccion["tag"], "cuda": eleccion["cuda"]}
 
+    if a.solo_descargar:
+        guardar()
+        decir("\nDescargado. Para el panel de NVIDIA (Configuracion de programa > Agregar > Examinar...), "
+              "el programa es:\n\n    " + os.path.abspath(llama_server) + "\n")
+        decir("Cuando lo tengas, lanza otra vez sin --solo-descargar: no vuelve a bajar nada.")
+        return 0
+
     mtp_ok = soporta_mtp(llama_server)
     informe["llama_server_con_mtp"] = mtp_ok
     if mtp_ok is False:
         decir("AVISO: esta version de llama-server no conoce --spec-type draft-mtp; se prueba sin MTP.")
+
+    if a.exprimir:
+        decir("\n== 4. Prueba de velocidad (un ajuste cada vez) ==")
+        nombre_modelo, ruta, _ = modelos[0]
+        velocidad = exprimir(inv, llama_server, ruta, dflash, carpeta, a.puerto, a.limite_carga)
+        texto = informe_velocidad(inv, velocidad)
+        with open(os.path.join(carpeta, "informe-velocidad.json"), "w", encoding="utf-8") as f:
+            json.dump({"inventario": inv, "avisos": avisos, **velocidad}, f, ensure_ascii=False, indent=2)
+        with open(os.path.join(carpeta, "informe-velocidad.md"), "w", encoding="utf-8") as f:
+            f.write(texto)
+        decir("\n" + texto)
+        decir(f"Listo. Pasame el archivo {os.path.join(carpeta, 'informe-velocidad.md')}.")
+        return 1 if velocidad.get("error") else 0
 
     decir("\n== 4. Pruebas ==")
     opciones_extra = ["--turnos", "2", "--pensar", "no"] if a.rapido else []

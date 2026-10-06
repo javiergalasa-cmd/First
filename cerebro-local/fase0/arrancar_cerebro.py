@@ -54,9 +54,15 @@ def construir_comando(a: argparse.Namespace) -> list[str]:
     ]
     if a.capas_gpu is not None:
         cmd += ["-ngl", str(a.capas_gpu)]
+    if a.hilos:
+        cmd += ["-t", str(a.hilos)]
+    if a.ubatch:
+        # Bloques mas grandes al leer el prompt: menos viajes de pesos CPU->GPU, mas VRAM de trabajo.
+        cmd += ["-b", str(max(2048, a.ubatch)), "-ub", str(a.ubatch)]
     if a.dflash:
+        # El borrador DFlash es pequeno (~1 GB): entero en la GPU o no compensa.
         cmd += ["--spec-type", "draft-dflash", "--spec-draft-model", a.dflash,
-                "--spec-draft-n-max", str(a.borrador_n)]
+                "--spec-draft-n-max", str(a.borrador_n), "--spec-draft-ngl", "all"]
     elif not a.sin_mtp:
         # El cabezal MTP viaja dentro del GGUF (tensores blk.*.nextn): no hace falta otro archivo.
         cmd += ["--spec-type", "draft-mtp", "--spec-draft-n-max", str(a.borrador_n)]
@@ -109,6 +115,10 @@ def parser() -> argparse.ArgumentParser:
                    help="MiB que --fit deja libres en la GPU (sube si el escritorio usa la grafica)")
     p.add_argument("--capas-gpu", type=int, default=None,
                    help="fuerza el numero de capas en la GPU (por defecto lo decide --fit)")
+    p.add_argument("--hilos", type=int, default=None,
+                   help="hilos de CPU al generar (por defecto los decide llama.cpp)")
+    p.add_argument("--ubatch", type=int, default=None,
+                   help="tamano de bloque al leer el prompt (por defecto 512)")
     p.add_argument("--sin-mtp", action="store_true", help="desactiva la decodificacion especulativa MTP")
     p.add_argument("--borrador-n", type=int, default=2,
                    help="tokens que propone el borrador por paso (2 es lo que mejor rinde en GPUs pequenas)")

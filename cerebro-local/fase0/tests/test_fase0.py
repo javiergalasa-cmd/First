@@ -31,9 +31,9 @@ class ServidorFalso:
     """
 
     def __init__(self, cache_ok=True, con_timings=True, herramienta="obtener_tiempo", puerto=0,
-                 al_completar=None):
+                 al_completar=None, tok_s=10.0, lee_s=500.0):
         self.cache_ok, self.con_timings, self.herramienta = cache_ok, con_timings, herramienta
-        self.al_completar = al_completar
+        self.al_completar, self.tok_s, self.lee_s = al_completar, tok_s, lee_s
         self.ultimo_prompt = 0
         self.peticiones = []
         falso = self
@@ -95,9 +95,9 @@ class ServidorFalso:
              "usage": {"prompt_tokens": total, "completion_tokens": generados}}
         if self.con_timings:
             r["timings"] = {"cache_n": cache_n, "prompt_n": prompt_n,
-                            "prompt_ms": prompt_n * 2.0, "prompt_per_second": 500.0,
-                            "predicted_n": generados, "predicted_ms": generados * 100.0,
-                            "predicted_per_second": 10.0, "draft_n": 30, "draft_n_accepted": 24}
+                            "prompt_ms": prompt_n * 1000.0 / self.lee_s, "prompt_per_second": self.lee_s,
+                            "predicted_n": generados, "predicted_ms": generados * 1000.0 / self.tok_s,
+                            "predicted_per_second": self.tok_s, "draft_n": 30, "draft_n_accepted": 24}
         return r
 
     def __enter__(self):
@@ -146,6 +146,14 @@ class PruebasArranque(unittest.TestCase):
         self.assertIn("draft-dflash", cmd)
         self.assertNotIn("draft-mtp", cmd)
         self.assertEqual(cmd[cmd.index("--spec-draft-model") + 1], "d.gguf")
+        self.assertEqual(cmd[cmd.index("--spec-draft-ngl") + 1], "all", "el borrador va entero en la GPU")
+
+    def test_hilos_y_bloque(self):
+        cmd = arrancar_cerebro.construir_comando(self.args("--hilos", "6", "--ubatch", "2048"))
+        self.assertEqual(cmd[cmd.index("-t") + 1], "6")
+        self.assertEqual(cmd[cmd.index("-ub") + 1], "2048")
+        self.assertEqual(cmd[cmd.index("-b") + 1], "2048")
+        self.assertNotIn("-t", arrancar_cerebro.construir_comando(self.args()))
 
     def test_sin_mtp(self):
         cmd = arrancar_cerebro.construir_comando(self.args("--sin-mtp"))

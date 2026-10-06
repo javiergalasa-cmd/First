@@ -368,3 +368,83 @@ class PruebasEjecucionCompleta(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PruebasVelocidad(unittest.TestCase):
+    """--exprimir contra un llama-server falso cuya velocidad depende de las opciones (ver llama_server_falso)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.chmod(FALSO, os.stat(FALSO).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    def test_borrador_prefiere_q4_k_m(self):
+        arbol = [{"type": "file", "path": "dflash-Q8_0.gguf", "lfs": {"oid": "a", "size": 2000}},
+                 {"type": "file", "path": "dflash-Q4_K_M.gguf", "lfs": {"oid": "b", "size": 1100}},
+                 {"type": "file", "path": "dflash-Q2_K.gguf", "lfs": {"oid": "c", "size": 700}}]
+        self.assertEqual(fase0.elegir_borrador(arbol)["ruta"], "dflash-Q4_K_M.gguf")
+        self.assertEqual(fase0.elegir_borrador(arbol[:1] + arbol[2:])["ruta"], "dflash-Q8_0.gguf")
+        self.assertEqual(fase0.elegir_borrador(arbol[2:])["ruta"], "dflash-Q2_K.gguf")
+        with self.assertRaises(RuntimeError):
+            fase0.elegir_borrador([{"type": "file", "path": "README.md"}])
+
+    def test_resolver_ajustes(self):
+        ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, None)}
+        self.assertEqual(ajustes["hilos-nucleos"], ["--hilos", "8"])
+        self.assertEqual(ajustes["hilos-mitad"], ["--hilos", "4"])
+        self.assertNotIn("dflash", ajustes, "sin borrador descargado no se prueba DFlash")
+        ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, "d.gguf")}
+        self.assertEqual(ajustes["dflash"], ["--dflash", "d.gguf", "--borrador-n", "7"])
+
+    def test_elegir_ganadores(self):
+        ajustes = fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, "d.gguf")
+        resultados = {
+            "base": {"genera": 10.0, "lee": 500.0},
+            "sin-mtp": {"genera": 6.0, "lee": 500.0},
+            "mtp3": {"genera": 10.6, "lee": 500.0},
+            "dflash": {"genera": 14.0, "lee": 480.0},
+            "hilos-nucleos": {"genera": 10.2, "lee": 500.0},   # +2 %: ruido
+            "hilos-mitad": {"genera": None, "error": "no arranco"},
+            "margen-512": {"genera": 11.0, "lee": 500.0},      # +10 %
+            "ubatch-2048": {"genera": 9.8, "lee": 700.0},      # solo mejora al leer: gana
+            "sin-op-offload": {"genera": 10.6, "lee": 200.0},  # genera algo mas pero lee mucho peor: no
+            "kv-q4": {"genera": 12.0, "lee": 500.0},           # tiene coste de calidad: no se elige solo
+        }
+        self.assertEqual(sorted(fase0.elegir_ganadores(resultados, ajustes)),
+                         ["dflash", "margen-512", "ubatch-2048"])
+
+    def test_exprimir_de_punta_a_punta(self):
+        carpeta = tempfile.mkdtemp()
+        with contextlib.redirect_stdout(io.StringIO()):
+            s = fase0.exprimir({"cpu": {"NumberOfCores": 8}}, FALSO, os.path.join(carpeta, "m-IQ3_S-mtp.gguf"),
+                               "/ruta/privada/d.gguf", carpeta, puerto_libre(), 60)
+        self.assertNotIn("error", s)
+        self.assertEqual(s["resultados"]["base"]["genera"], 10.0)
+        self.assertEqual(sorted(s["ganadores"]), ["dflash", "hilos-nucleos", "margen-512", "ubatch-2048"])
+        self.assertAlmostEqual(s["combinada"]["genera"], round(14.0 * 1.2 * 1.1, 2), places=1)
+        opciones = s["opciones_recomendadas"]
+        self.assertIn("<borrador DFlash>", opciones, "el informe no debe llevar la ruta del borrador")
+        self.assertNotIn("/ruta/privada/d.gguf", opciones)
+        self.assertEqual(opciones[opciones.index("--hilos") + 1], "8")
+        texto = fase0.informe_velocidad({"ram": {}}, s)
+        self.assertIn("| dflash |", texto)
+        self.assertIn("Comando recomendado", texto)
+        self.assertIn("+40 %", texto)
+
+    def test_main_exprimir_y_solo_descargar(self):
+        tmp = tempfile.mkdtemp()
+        modelo = os.path.join(tmp, "m-IQ3_S-mtp.gguf")
+        with open(modelo, "wb") as f:
+            f.write(b"GGUF")
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida), contextlib.redirect_stderr(io.StringIO()):
+            codigo = fase0.main(["--carpeta", os.path.join(tmp, "w"), "--sin-descargas", "--llama-server", FALSO,
+                                 "--modelo", modelo, "--solo-descargar"])
+        self.assertEqual(codigo, 0)
+        self.assertIn(os.path.abspath(FALSO), salida.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            codigo = fase0.main(["--carpeta", os.path.join(tmp, "w"), "--sin-descargas", "--llama-server", FALSO,
+                                 "--modelo", modelo, "--exprimir", "--puerto", str(puerto_libre()),
+                                 "--limite-carga", "60"])
+        self.assertEqual(codigo, 0)
+        with open(os.path.join(tmp, "w", "informe-velocidad.md"), encoding="utf-8") as f:
+            self.assertIn("Prueba de velocidad", f.read())

@@ -33,21 +33,30 @@ que lo pegue la sesión de JADIS en tu PC, o tú mismo.
   **un canal**: la mitad de ancho de banda. Un segundo módulo igual casi duplicaría la velocidad
   del cerebro local. DDR4 o DDR5, pendiente del inventario.
 - **Decisiones de Javier**:
-  - **D1**: si el cerebro local no responde, esperar; si sigue sin responder, preguntar por el
-    móvil (ntfy) si usar la nube seudonimizada; sin respuesta = no.
+  - **Principio**: el cerebro local es el único de confianza (local + sin censura), no el más
+    listo. Delega casi todo en subagentes de la nube con la tarea mínima y sin datos; paso directo
+    de las respuestas para que el cerebro escriba poco.
+  - **D1**: si el cerebro local no responde, esperar; si sigue sin responder, preguntar a la vez
+    en el PC (notificación de permiso de JADIS) y en el móvil (ntfy) si usar la nube
+    seudonimizada; vale la primera respuesta; sin respuesta = no.
   - **D2**: modelo sin censura ya hecho, que conserve el MTP, con checklist (plantilla oficial,
     SHA256, A/B).
-  - **D5**: el cerebro no lee contenido de fuera directamente. Lo leen lectores en cuarentena
-    (patrón Dual LLM / CaMeL): en la nube lo público, en local y sin herramientas lo privado.
-    Lo que devuelven es dato, y lo peligroso pasa por tarjeta.
+  - **D5**: lo personal (correos, archivos, mensajes, memoria) solo lo lee JADIS, nunca un
+    subagente: en dos pasos, primero sin herramientas. Lo de fuera (webs, búsquedas) lo leen
+    los subagentes. Lo que vuelve es dato, y lo peligroso pasa por tarjeta (patrón Dual LLM /
+    CaMeL).
 - **Fase 0 preparada**: `cerebro-local/fase0/fase0.py` hace inventario, descarga (llama.cpp
   oficial + Qwen3.8-27B GSQ-RCO IQ3_S e IQ2_S con MTP, SHA256 y reanudación) y pruebas con y sin
-  MTP. Deja `C:\jadis-cerebro\informe-fase0.md` sin datos personales. 49 tests con un
+  MTP. Deja `C:\jadis-cerebro\informe-fase0.md` sin datos personales. 55 tests con un
   llama-server simulado.
 - **Riesgo nº 1**: la caché de prompt de los modelos híbridos en llama.cpp. Si el principio del
   prompt cambia, relee todo cada turno. La Fase 0 lo mide.
-- **Siguiente paso**: ejecutar la Fase 0 en el PC (con JADIS y Ollama cerrados) y analizar el
-  informe.
+- **Velocidad**: `fase0.py --exprimir` prueba los ajustes uno a uno (borrador MTP/DFlash 2,
+  hilos, margen de VRAM, bloques) y recomienda el comando más rápido. Antes, comprobar
+  D.O.C.P./EXPO en la BIOS y probar el monitor en la gráfica integrada.
+- **Siguiente paso**: ejecutar la Fase 0 en el PC (con JADIS y Ollama cerrados), primero
+  `--solo-descargar` para tener la ruta de `llama-server.exe` para el panel de NVIDIA, y
+  analizar el informe.
 ```
 
 ## Para §4 Pendiente
@@ -60,7 +69,7 @@ N. **Cerebro local + frontera de privacidad** (plan del 6-oct, `cerebro-local/PL
    - Fase 2: integrar. Router con `local` y `solo_local`; D1 con espera y pregunta por ntfy;
      supervisor con "modo GPU ocupada"; cola con prioridad.
    - Fase 3: seudonimización + DLP en el router.
-   - Fase 4: minimización y lectores en cuarentena (D5).
+   - Fase 4: delegar por defecto, paso directo de respuestas, reparto de D5.
    - Fase 5: resto de salidas (voz, búsquedas, ntfy, MCP).
 
    Hardware: valorar un segundo módulo de RAM igual (dos canales).
