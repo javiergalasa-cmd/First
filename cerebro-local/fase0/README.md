@@ -15,7 +15,7 @@ estimaciones.
 | `fase0.py` | **Todo en un comando:** mira el equipo, descarga (preguntando antes), prueba y deja el informe |
 | `arrancar_cerebro.py` | Lanza `llama-server` con la configuración del plan (PLAN.md §7); también sirve suelto |
 | `bench_cerebro.py` | Mide la velocidad, el primer turno, la caché entre turnos, las herramientas y el pensar; también sirve suelto |
-| `tests/` | 60 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
+| `tests/` | 61 pruebas de los tres scripts con un `llama-server` simulado (`python -m unittest discover -s tests`) |
 
 Los scripts solo usan la **biblioteca estándar de Python** (3.9 o superior). Solo se conectan
 a Internet para descargar:

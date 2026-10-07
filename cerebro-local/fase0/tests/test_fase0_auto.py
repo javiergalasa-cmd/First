@@ -451,6 +451,12 @@ class PruebasVelocidad(unittest.TestCase):
         ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, "d.gguf")}
         self.assertEqual(ajustes["dflash"], ["--dflash", "d.gguf", "--borrador-n", "7"])
 
+    def test_opciones_sin_repetir_las_de_base(self):
+        ajustes = fase0.resolver_ajustes({"cpu": {"NumberOfCores": 6}}, None)
+        self.assertEqual(fase0.opciones_de(["mtp1", "margen-512"], ajustes),
+                         ["--borrador-n", "1", "--fit-target", "512"])
+        self.assertEqual(fase0.opciones_de(["margen-512"], ajustes), ["--borrador-n", "2", "--fit-target", "512"])
+
     def test_elegir_ganadores(self):
         ajustes = fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, "d.gguf")
         resultados = {

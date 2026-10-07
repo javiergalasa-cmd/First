@@ -404,6 +404,31 @@ lo rápido que la CPU lee su parte del modelo.
 
 Lo que limita es la velocidad (un canal), no la cantidad.
 
+### 4.0 Medido en tu PC (7-oct, `--exprimir`, IQ3_S, DDR5-4800 en un canal)
+
+> **Mis estimaciones de la tabla anterior eran optimistas.** Lo medido es ~2,5 veces más lento.
+
+| Medida | Resultado |
+|---|---|
+| Genera (configuración del plan, MTP 2) | **2,8 tok/s** |
+| Sin MTP | 2,6 tok/s (MTP solo aporta ~+9 %) |
+| DFlash 2 | 2,9 tok/s, acepta solo el 24 %: **descartado** |
+| Mejor combinación (MTP 1 + margen 512 + bloques 2048) | 3,0 tok/s (+7 %, cerca del ruido) |
+| Lee el prompt | 190-310 tok/s (bloques de 2048: +50 %, el único ajuste claramente bueno) |
+| Caché entre turnos | **Funciona** (reutiliza el 99 %): el riesgo del modelo híbrido queda descartado |
+| Segundo turno de una conversación | ~17-24 s para unas 40 palabras de respuesta |
+| Hilos de CPU | El valor por defecto es el mejor; con 6 o 3 hilos va peor |
+
+**Conclusión:** el cuello de botella es la RAM de un canal. Ningún ajuste del motor lo cambia.
+Quedan tres palancas reales, de más barata a más cara:
+
+1. **D.O.C.P. en la BIOS:** gratis, hasta un +17 % en la parte de la CPU.
+2. **IQ2_S:** 2,4 GB menos en la RAM. Pendiente de medir.
+3. **Un segundo módulo igual:** dos canales; es la única que se acerca a duplicar la velocidad.
+
+Con ~3 tok/s el principio de 2.1 (delegar casi todo, paso directo, escribir poco) deja de ser
+una preferencia y pasa a ser **obligatorio**.
+
 ### 4.1 Cómo sacar más velocidad, de gratis a caro
 
 Cómo se prueba cada cosa: `fase0/README.md`, sección "Prueba de velocidad".

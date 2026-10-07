@@ -743,11 +743,19 @@ def elegir_ganadores(resultados: dict, ajustes: list[tuple]) -> list[str]:
 
 
 def opciones_de(nombres: list[str], ajustes: list[tuple]) -> list[str]:
+    """Las opciones de 'base' con las de los ganadores encima. Si un ganador cambia una opcion que
+    ya trae 'base' (p. ej. --borrador-n), se quita la de 'base' para no repetirla."""
     por_nombre = {n: o for n, o, *_ in ajustes}
-    opciones = list(por_nombre["base"])
-    for n in nombres:
-        opciones += por_nombre[n]
-    return opciones
+    extra = [o for n in nombres for o in por_nombre[n]]
+    pisadas = {o for o in extra if o.startswith("--")}
+    opciones, base, i = [], por_nombre["base"], 0
+    while i < len(base):
+        if base[i] in pisadas:
+            i += 2 if i + 1 < len(base) and not base[i + 1].startswith("--") else 1
+            continue
+        opciones.append(base[i])
+        i += 1
+    return opciones + extra
 
 
 def exprimir(inv: dict, llama_server: str, modelo: str, dflash: str | None, carpeta: str, puerto: int,
