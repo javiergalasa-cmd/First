@@ -476,6 +476,9 @@ palabra solo trabajan unos pocos. **Qwen3.6-35B-A3B** tiene 35.000 millones de p
 
 **MEDIDO en tu PC (8-oct, IQ3_S, sin ajustes): 35 tok/s al escribir, 375 tok/s al leer; segundo
 turno de una conversación en 1,2 s** (frente a 13-16 s del 27B). La caché funciona.
+**Con el prompt realista de 12.500 tokens y herramientas:** 32 tok/s, turnos de 1-2 s,
+herramienta OK en 2,8 s. El primer turno tarda 30 s (leer el prompt entero); se evita
+precalentando al arrancar (Fase 2).
 
 **Referencias de velocidad (de otras personas):**
 

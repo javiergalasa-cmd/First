@@ -133,7 +133,7 @@ class PruebasArranque(unittest.TestCase):
         cmd = arrancar_cerebro.construir_comando(self.args())
         texto = " ".join(cmd)
         self.assertIn("--host 127.0.0.1", texto)
-        self.assertIn("--alias qwen3.8-27b-local", texto, "la API no debe anunciar la ruta del archivo")
+        self.assertIn("--alias cerebro-local", texto, "la API no debe anunciar la ruta del archivo")
         self.assertIn("--spec-type draft-mtp", texto)
         self.assertIn("--spec-draft-n-max 2", texto)
         self.assertIn("-np 1", texto)
@@ -156,8 +156,9 @@ class PruebasArranque(unittest.TestCase):
         self.assertNotIn("-t", arrancar_cerebro.construir_comando(self.args()))
 
     def test_sin_mmap(self):
-        self.assertIn("--no-mmap", arrancar_cerebro.construir_comando(self.args("--sin-mmap")))
-        self.assertNotIn("--no-mmap", arrancar_cerebro.construir_comando(self.args()))
+        cmd = arrancar_cerebro.construir_comando(self.args("--sin-mmap"))
+        self.assertEqual(cmd[cmd.index("--load-mode") + 1], "none")
+        self.assertNotIn("--load-mode", arrancar_cerebro.construir_comando(self.args()))
 
     def test_sin_mtp(self):
         cmd = arrancar_cerebro.construir_comando(self.args("--sin-mtp"))

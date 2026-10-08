@@ -451,6 +451,24 @@ class PruebasVelocidad(unittest.TestCase):
         ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, "d.gguf")}
         self.assertEqual(ajustes["dflash"], ["--dflash", "d.gguf", "--borrador-n", "7"])
 
+    def test_cada_ajuste_va_encima_de_base(self):
+        carpeta = tempfile.mkdtemp()
+        lanzados = []
+        original = fase0.probar
+
+        def falso(nombre, servidor, modelo, opciones, *resto):
+            lanzados.append((nombre, list(opciones)))
+            return {"prueba": nombre, "error": "simulado"} if nombre != "velocidad-base" else {"prueba": nombre}
+        fase0.probar = falso
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                fase0.exprimir({"cpu": {"NumberOfCores": 6}}, "x", os.path.join(carpeta, "moe-IQ3_S.gguf"),
+                               None, carpeta, 1, 1)
+        finally:
+            fase0.probar = original
+        for nombre, opciones in lanzados:
+            self.assertIn("--sin-mtp", opciones, f"{nombre} debe heredar --sin-mtp de base")
+
     def test_modelo_sin_mtp_no_prueba_borradores(self):
         ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 6}}, "d.gguf", False)}
         self.assertEqual(ajustes["base"], ["--sin-mtp"])

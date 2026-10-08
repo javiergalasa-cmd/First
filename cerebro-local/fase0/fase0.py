@@ -77,7 +77,7 @@ AJUSTES = [
      "lee el prompt en bloques de 2048 (menos viajes por el PCIe, mas VRAM de trabajo)"),
     ("sin-op-offload", ["--sin-op-offload"], "op", "ninguno", "no sube capas de la CPU a la GPU al leer el prompt"),
     ("sin-mmap", ["--sin-mmap"], "mmap", "ninguno",
-     "carga todo el modelo en RAM al arrancar (en modelos MoE suele acelerar los expertos de la CPU)"),
+     "carga el modelo en RAM sin mmap (llama.cpp lo recomienda con expertos en la CPU)"),
     ("kv-q4", ["--cache-k", "q4_0", "--cache-v", "q4_0"], "kv", "pequeno",
      "cache KV a 4 bits: libera VRAM para mas capas, pierde algo de precision"),
 ]
@@ -802,7 +802,9 @@ def exprimir(inv: dict, llama_server: str, modelo: str, dflash: str | None, carp
     salida: dict = {"modelo": os.path.basename(modelo), "ajustes": [], "resultados": {}, "pruebas": []}
     for nombre, opciones, grupo, coste, que in ajustes:
         decir(f"-- ajuste '{nombre}': {que}")
-        r = probar(f"velocidad-{nombre}", llama_server, modelo, opciones, BENCH_RAPIDO, carpeta, puerto,
+        # Cada ajuste va ENCIMA de 'base' (p. ej. un MoE sin MTP necesita --sin-mtp en todas las pruebas).
+        completas = opciones if nombre == "base" else opciones_de([nombre], ajustes)
+        r = probar(f"velocidad-{nombre}", llama_server, modelo, completas, BENCH_RAPIDO, carpeta, puerto,
                    limite_carga)
         salida["pruebas"].append(r)
         salida["resultados"][nombre] = medir_ajuste(r)

@@ -73,7 +73,8 @@ def construir_comando(a: argparse.Namespace) -> list[str]:
     if a.sin_op_offload:
         cmd += ["--no-op-offload"]
     if a.sin_mmap:
-        cmd += ["--no-mmap"]
+        # Las versiones recientes cambiaron --no-mmap por --load-mode (el propio registro lo sugiere).
+        cmd += ["--load-mode", "none"]
     if a.sin_pensar:
         # Valor por defecto del servidor; cada peticion puede cambiarlo con chat_template_kwargs.
         cmd += ["--chat-template-kwargs", json.dumps({"enable_thinking": False})]
@@ -106,7 +107,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--llama-server", default="llama-server.exe" if os.name == "nt" else "llama-server",
                    help="ruta al ejecutable llama-server (por defecto, el del PATH)")
     p.add_argument("--modelo", required=True, help="ruta al .gguf del modelo")
-    p.add_argument("--alias", default="qwen3.8-27b-local", help="nombre del modelo en la API")
+    p.add_argument("--alias", default="cerebro-local", help="nombre del modelo en la API")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--puerto", type=int, default=8080)
     p.add_argument("--contexto", type=int, default=65536,
