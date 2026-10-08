@@ -456,6 +456,53 @@ Quedan tres palancas reales, de más barata a más cara:
 Con ~3 tok/s el principio de 2.1 (delegar casi todo, paso directo, escribir poco) deja de ser
 una preferencia y pasa a ser **obligatorio**.
 
+### 4.0.1 El cerebro rápido mientras llega la 5070: un MoE (investigado el 8-oct)
+
+**El problema:** con Qwen3.8-27B (denso), cada palabra lee ~9 GB. Con la RAM de un canal no
+baja de ~15 s por turno.
+
+**La salida:** un modelo **MoE** (mezcla de expertos). Tiene muchos parámetros, pero en cada
+palabra solo trabajan unos pocos. **Qwen3.6-35B-A3B** tiene 35.000 millones de parámetros y usa
+**3.000 millones por palabra**: lee ~10 veces menos que el 27B.
+
+| | Qwen3.8-27B IQ2_S (medido) | **Qwen3.6-35B-A3B sin censura, IQ3_S (estimado)** |
+|---|---|---|
+| Inteligencia sin pensar (Artificial Analysis) | 20 | **15** (−25 %) |
+| Inteligencia pensando | 34 | 18 |
+| Escribe en tu PC | 3,1 tok/s | **~15-25 tok/s** |
+| Respuesta corta (30 tokens) | ~13-16 s | **~2-4 s** |
+| Sin censura | Hay que elegir versión | **Heretic de llmfan46: KL 0,0015, rechazos 10/100 (frente a 83/100)** |
+| Archivo | 8,9 GB | ~15,4 GB (cuantización i1 de mradermacher) |
+
+**Referencias de velocidad (de otras personas, no de tu PC):**
+
+- 8 GB + 64 GB de RAM (portátil, probablemente doble canal), Q6: **35-38 tok/s**.
+- GTX 1060 de 6 GB: 17 tok/s.
+- Con tu RAM de un canal se espera menos: **la cifra hay que medirla**.
+
+**Por qué compensa:** el cerebro va sin pensar, y ahí la diferencia es 20 frente a 15, no 34
+frente a 18. Su trabajo es dirigir y delegar (2.1); lo difícil lo hacen los subagentes.
+
+**Riesgos:**
+
+- No hay ninguna evaluación independiente en español ni como orquestador. Se mide en la Fase 1.
+- Con **IQ3** pierde algo más de calidad que con Q4. Q4 (~19-21 GB) no cabe en la RAM libre de
+  hoy; con un segundo módulo, sí.
+- En conversaciones de agente largas, los modelos híbridos pueden **releer el prompt** si
+  llama.cpp descarta sus puntos de control. Hay un parche de la comunidad. Se comprueba en la
+  Fase 2.
+
+**Descartados por ahora:**
+
+- **K2 Horizon MoVA 36B-A4B (25) y K2 Horizon 7B (21):** necesitan una versión aparte de
+  llama.cpp y no tienen versiones sin censura.
+- **G9v3-39A5B:** lo mismo.
+- **Gemma 4 26B-A4B:** 17 pensando y 13 sin pensar; peor que Qwen3.6.
+
+**Cuando llegue la 5070 (16 GB):** volver a Qwen3.8-27B sin censura en IQ3/IQ4, entero en la
+GPU (~35-45 tok/s, estimado). Así tienes calidad y velocidad. El cambio es una línea en el
+router.
+
 ### 4.1 Cómo sacar más velocidad, de gratis a caro
 
 Cómo se prueba cada cosa: `fase0/README.md`, sección "Prueba de velocidad".

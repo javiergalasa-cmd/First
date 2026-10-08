@@ -76,6 +76,8 @@ AJUSTES = [
     ("ubatch-2048", ["--ubatch", "2048"], "ubatch", "ninguno",
      "lee el prompt en bloques de 2048 (menos viajes por el PCIe, mas VRAM de trabajo)"),
     ("sin-op-offload", ["--sin-op-offload"], "op", "ninguno", "no sube capas de la CPU a la GPU al leer el prompt"),
+    ("sin-mmap", ["--sin-mmap"], "mmap", "ninguno",
+     "carga todo el modelo en RAM al arrancar (en modelos MoE suele acelerar los expertos de la CPU)"),
     ("kv-q4", ["--cache-k", "q4_0", "--cache-v", "q4_0"], "kv", "pequeno",
      "cache KV a 4 bits: libera VRAM para mas capas, pierde algo de precision"),
 ]
@@ -699,12 +701,20 @@ def informe_markdown(inv: dict, pruebas: list[dict], avisos: list[str]) -> str:
 
 # --------------------------------------------------------------------------- prueba de velocidad
 
-def resolver_ajustes(inv: dict, dflash: str | None) -> list[tuple]:
-    """Rellena {nucleos}, {mitad} y {dflash}; quita los ajustes que no se pueden probar en este PC."""
+def resolver_ajustes(inv: dict, dflash: str | None, con_mtp: bool = True) -> list[tuple]:
+    """Rellena {nucleos}, {mitad} y {dflash}; quita los ajustes que no se pueden probar en este PC.
+
+    Sin cabezal MTP en el modelo (p. ej. los MoE sin censura), 'base' va sin borrador y no se
+    prueban las variantes del borrador."""
     nucleos = int((inv.get("cpu") or {}).get("NumberOfCores") or 0) or (os.cpu_count() or 0) // 2 or None
     valores = {"nucleos": nucleos, "mitad": max(1, nucleos // 2) if nucleos else None, "dflash": dflash}
     resueltos = []
     for nombre, opciones, grupo, coste, que in AJUSTES:
+        if not con_mtp:
+            if grupo == "borrador":
+                continue
+            if nombre == "base":
+                opciones, que = ["--sin-mtp"], "la configuracion de partida (sin borrador: el modelo no trae MTP)"
         if any(not valores.get(k) for k in re.findall(r"\{(\w+)\}", " ".join(opciones))):
             continue
         resueltos.append((nombre, [o.format(**valores) for o in opciones], grupo, coste, que))
@@ -761,7 +771,7 @@ def opciones_de(nombres: list[str], ajustes: list[tuple]) -> list[str]:
 def exprimir(inv: dict, llama_server: str, modelo: str, dflash: str | None, carpeta: str, puerto: int,
              limite_carga: float) -> dict:
     """Prueba cada ajuste por separado, elige los que ganan y prueba su combinacion."""
-    ajustes = resolver_ajustes(inv, dflash)
+    ajustes = resolver_ajustes(inv, dflash, "mtp" in os.path.basename(modelo).lower())
     salida: dict = {"modelo": os.path.basename(modelo), "ajustes": [], "resultados": {}, "pruebas": []}
     for nombre, opciones, grupo, coste, que in ajustes:
         decir(f"-- ajuste '{nombre}': {que}")

@@ -451,6 +451,13 @@ class PruebasVelocidad(unittest.TestCase):
         ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 8}}, "d.gguf")}
         self.assertEqual(ajustes["dflash"], ["--dflash", "d.gguf", "--borrador-n", "7"])
 
+    def test_modelo_sin_mtp_no_prueba_borradores(self):
+        ajustes = {n: o for n, o, *_ in fase0.resolver_ajustes({"cpu": {"NumberOfCores": 6}}, "d.gguf", False)}
+        self.assertEqual(ajustes["base"], ["--sin-mtp"])
+        for n in ("sin-mtp", "mtp1", "mtp3", "dflash"):
+            self.assertNotIn(n, ajustes)
+        self.assertEqual(ajustes["sin-mmap"], ["--sin-mmap"])
+
     def test_opciones_sin_repetir_las_de_base(self):
         ajustes = fase0.resolver_ajustes({"cpu": {"NumberOfCores": 6}}, None)
         self.assertEqual(fase0.opciones_de(["mtp1", "margen-512"], ajustes),

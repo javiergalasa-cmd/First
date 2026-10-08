@@ -72,6 +72,8 @@ def construir_comando(a: argparse.Namespace) -> list[str]:
             cmd += ["--no-mmproj-offload"]
     if a.sin_op_offload:
         cmd += ["--no-op-offload"]
+    if a.sin_mmap:
+        cmd += ["--no-mmap"]
     if a.sin_pensar:
         # Valor por defecto del servidor; cada peticion puede cambiarlo con chat_template_kwargs.
         cmd += ["--chat-template-kwargs", json.dumps({"enable_thinking": False})]
@@ -128,6 +130,9 @@ def parser() -> argparse.ArgumentParser:
                    help="deja el codificador de vision en la CPU para no gastar VRAM")
     p.add_argument("--sin-op-offload", action="store_true",
                    help="no sube a la GPU las capas de la CPU al leer prompts largos (probar en Fase 0)")
+    p.add_argument("--sin-mmap", action="store_true",
+                   help="carga el modelo entero en RAM en vez de leerlo del disco bajo demanda (suele ir "
+                        "mejor con modelos MoE con expertos en la CPU; necesita RAM libre para todo el archivo)")
     p.add_argument("--sin-pensar", action="store_true",
                    help="por defecto responde sin 'pensar' (cada peticion puede activarlo)")
     p.add_argument("--formato-razonamiento", default="deepseek",

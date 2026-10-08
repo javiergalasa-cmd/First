@@ -155,6 +155,10 @@ class PruebasArranque(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("-b") + 1], "2048")
         self.assertNotIn("-t", arrancar_cerebro.construir_comando(self.args()))
 
+    def test_sin_mmap(self):
+        self.assertIn("--no-mmap", arrancar_cerebro.construir_comando(self.args("--sin-mmap")))
+        self.assertNotIn("--no-mmap", arrancar_cerebro.construir_comando(self.args()))
+
     def test_sin_mtp(self):
         cmd = arrancar_cerebro.construir_comando(self.args("--sin-mtp"))
         self.assertNotIn("--spec-type", cmd)
