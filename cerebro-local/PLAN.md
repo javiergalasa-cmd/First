@@ -479,6 +479,13 @@ turno de una conversación en 1,2 s** (frente a 13-16 s del 27B). La caché func
 **Con el prompt realista de 12.500 tokens y herramientas:** 32 tok/s, turnos de 1-2 s,
 herramienta OK en 2,8 s. El primer turno tarda 30 s (leer el prompt entero); se evita
 precalentando al arrancar (Fase 2).
+**Ajustes (8-oct):**
+
+- Al escribir, todo da ~33-37 tok/s: el techo lo pone la RAM y las diferencias son ruido.
+- Al leer el prompt ganan **sin mmap (+46 %)** y **bloques de 2048 (+84 %)**.
+- Configuración elegida: `--sin-mtp --sin-mmap --ubatch 2048 --fit-target 512`.
+- Sin mmap, la parte del modelo que va en la CPU (~9-10 GB) se queda fija en la RAM: con JADIS
+  y Docker abiertos hay que vigilar la RAM libre (Fase 2).
 
 **Referencias de velocidad (de otras personas):**
 
