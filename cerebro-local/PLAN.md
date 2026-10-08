@@ -419,6 +419,17 @@ Lo que limita es la velocidad (un canal), no la cantidad.
 | Segundo turno de una conversación | ~17-24 s para unas 40 palabras de respuesta |
 | Hilos de CPU | El valor por defecto es el mejor; con 6 o 3 hilos va peor |
 
+**IQ2_S (8-oct, misma máquina):**
+
+| Medida | IQ3_S | IQ2_S |
+|---|---|---|
+| Genera, segundo turno (el más estable) | 2,6-2,8 tok/s | **3,4-3,5 tok/s (~+25 %)** |
+| MTP | +9 % | **nada** (sin MTP va igual o mejor) |
+| Mejor configuración | — | sin MTP + margen 512 + bloques 2048: ~3,5-3,6 tok/s; segundo turno ~11 s |
+
+El ruido entre ejecuciones es de ±20 % (cada medida son solo 30-40 tokens). Por ejemplo,
+"margen-512" dio 4,34 en el primer turno y 3,44 en el segundo. Hay que fiarse del segundo turno.
+
 **Conclusión:** el cuello de botella es la RAM de un canal. Ningún ajuste del motor lo cambia.
 Quedan tres palancas reales, de más barata a más cara:
 
