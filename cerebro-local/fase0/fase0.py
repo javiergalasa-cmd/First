@@ -59,6 +59,7 @@ CONFIGS = {  # nombre -> (opciones de arrancar_cerebro, opciones de bench_cerebr
     "mtp2": (["--borrador-n", "2"], []),
     "mtp3": (["--borrador-n", "3"], ["--pensar", "no"]),
     "sin-mtp": (["--sin-mtp"], ["--pensar", "no"]),
+    "sin-mtp-pensando": (["--sin-mtp"], []),  # sin borrador, con y sin pensar (modelos sin MTP)
 }
 # Ajustes que prueba --exprimir. Cada uno cambia UNA cosa respecto a "base".
 # (nombre, opciones de arrancar_cerebro, grupo excluyente, coste en calidad, que hace)
@@ -1074,7 +1075,7 @@ def main(argv: list[str] | None = None) -> int:
     for nombre_modelo, ruta, lleva_mtp in modelos:
         for config in configs:
             arranque, bench = CONFIGS[config]
-            if config != "sin-mtp" and (not lleva_mtp or mtp_ok is False):
+            if not config.startswith("sin-mtp") and (not lleva_mtp or mtp_ok is False):
                 decir(f"-- {nombre_modelo}/{config}: se salta (sin cabezal MTP o llama-server sin MTP)")
                 continue
             nombre = f"{nombre_modelo}-{config}"
