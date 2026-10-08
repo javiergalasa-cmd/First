@@ -474,7 +474,10 @@ palabra solo trabajan unos pocos. **Qwen3.6-35B-A3B** tiene 35.000 millones de p
 | Sin censura | Hay que elegir versión | **Heretic de llmfan46: KL 0,0015, rechazos 10/100 (frente a 83/100)** |
 | Archivo | 8,9 GB | ~15,4 GB (cuantización i1 de mradermacher) |
 
-**Referencias de velocidad (de otras personas, no de tu PC):**
+**MEDIDO en tu PC (8-oct, IQ3_S, sin ajustes): 35 tok/s al escribir, 375 tok/s al leer; segundo
+turno de una conversación en 1,2 s** (frente a 13-16 s del 27B). La caché funciona.
+
+**Referencias de velocidad (de otras personas):**
 
 - 8 GB + 64 GB de RAM (portátil, probablemente doble canal), Q6: **35-38 tok/s**.
 - GTX 1060 de 6 GB: 17 tok/s.

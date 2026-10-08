@@ -535,6 +535,29 @@ def esperar_listo(url: str, proceso: subprocess.Popen, limite_s: float) -> bool:
     return False
 
 
+def esperar_liberado(puerto: int, vram_ref: int | None, limite_s: float = 90) -> None:
+    """Tras cerrar llama-server, espera a que Windows suelte el puerto y la VRAM.
+
+    Si la siguiente prueba arranca antes, --fit ve menos memoria libre de la real y llama-server
+    puede abortar al no caber (lo que paso en la primera prueba del MoE)."""
+    fin = time.time() + limite_s
+    while time.time() < fin:
+        usada = vram_usada_mib()
+        if puerto_libre(puerto) and (vram_ref is None or usada is None or usada <= vram_ref + 300):
+            break
+        time.sleep(2)
+    if platform.system() == "Windows":
+        time.sleep(3)  # margen para que el driver termine de soltar la memoria
+
+
+def cola_del_log(ruta: str, lineas: int = 15) -> str:
+    try:
+        with open(ruta, encoding="utf-8", errors="replace") as f:
+            return "".join(f.readlines()[-lineas:])
+    except OSError:
+        return ""
+
+
 def leer_log(ruta: str) -> dict:
     """Saca del registro de llama-server lo que el informe necesita (sin rutas)."""
     try:
@@ -595,6 +618,9 @@ def probar(nombre: str, llama_server: str, modelo: str, opciones_arranque: list[
         try:
             if not esperar_listo(url, proceso, limite_carga_s):
                 resultado["error"] = "llama-server no llego a estar listo (mira logs/" + nombre + ".log)"
+                log.flush()
+                decir("   llama-server no arranco. Ultimas lineas de su registro:\n"
+                      + "\n".join("   | " + l for l in cola_del_log(log_ruta).splitlines()))
                 return resultado
             resultado["carga_s"] = round(time.time() - t0, 1)
             resultado["vram_antes_mib"] = vram_antes
@@ -622,6 +648,7 @@ def probar(nombre: str, llama_server: str, modelo: str, opciones_arranque: list[
             except subprocess.TimeoutExpired:
                 proceso.kill()
                 proceso.wait(timeout=30)
+            esperar_liberado(puerto, vram_antes)
     resultado.update(leer_log(log_ruta))
     return resultado
 
