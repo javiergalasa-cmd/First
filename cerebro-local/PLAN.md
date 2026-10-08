@@ -430,6 +430,22 @@ Lo que limita es la velocidad (un canal), no la cantidad.
 El ruido entre ejecuciones es de ±20 % (cada medida son solo 30-40 tokens). Por ejemplo,
 "margen-512" dio 4,34 en el primer turno y 3,44 en el segundo. Hay que fiarse del segundo turno.
 
+**Prueba completa (8-oct, prompt de sistema realista de 12.500 tokens, con herramientas):**
+
+| Prueba | Genera sin pensar | Turno con caché (sin pensar) | Primer turno | Herramienta | Caché |
+|---|---|---|---|---|---|
+| IQ3_S + MTP | 2,0-2,3 tok/s | 15-25 s | 64 s | OK | OK |
+| IQ3_S sin MTP | 2,4 tok/s | 14-19 s | 60 s | OK | OK |
+| IQ2_S + MTP | 2,4-2,8 tok/s | 18-22 s | 54 s | OK | OK |
+| **IQ2_S sin MTP** | **3,1 tok/s** | **13-16 s** | **50 s** | **OK** | **OK** |
+
+- **Pensando,** los turnos pasan a 40-110 s: pensar va **apagado por defecto** (ESTILO-JADIS.md).
+- **Con un prompt más largo** el modelo escribe algo más lento (3,1 frente a ~3,5 tok/s).
+- **El primer turno (~50 s)** es leer el prompt entero. Se puede **precalentar**: el supervisor
+  manda el prompt al arrancar, y así tu primera pregunta ya entra con caché (Fase 2).
+- **Decisión de la Fase 0 (D3): IQ2_S sin MTP.** La prueba de herramientas es solo una llamada
+  sencilla; la calidad real se mide en la Fase 1 con casos de JADIS.
+
 **Conclusión:** el cuello de botella es la RAM de un canal. Ningún ajuste del motor lo cambia.
 Quedan tres palancas reales, de más barata a más cara:
 
