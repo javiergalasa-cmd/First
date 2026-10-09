@@ -45,10 +45,12 @@ piensa y delega lo que toque. En la batería lo decide cada caso; en JADIS lo de
 - `--solo delegar,inyeccion`: solo esos grupos o casos.
 - `--modelo C:\...\otro.gguf`: probar otro modelo, por ejemplo el 27B cuando llegue la 5070.
 - `--url http://127.0.0.1:8080`: usar un servidor ya arrancado.
+- `--bucle`: sin pensar y con el bucle de revisión de `bucle.py` (varias pasadas rápidas
+  corregidas por código). Es el modo elegido.
 - `--tareas-sin-pensar`: las tareas también sin pensar, para comparar calidad y tiempo.
 - `--opciones "..."`: cambiar los ajustes de arranque. Por defecto, los elegidos en la Fase 0:
   `--sin-mtp --sin-mmap --ubatch 2048 --fit-target 512`.
 
 ## Pruebas del propio script
 
-`python -m unittest discover -s tests` (13 pruebas, sin GPU).
+`python -m unittest discover -s tests` (24 pruebas, sin GPU).

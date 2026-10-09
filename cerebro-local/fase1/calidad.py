@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.join(AQUI, "..", "fase0"))
 
 import arrancar_cerebro  # noqa: E402
 import bench_cerebro  # noqa: E402
+import bucle  # noqa: E402
 import fase0  # noqa: E402
 
 # --------------------------------------------------------------------------- el cerebro
@@ -83,11 +84,10 @@ PERSONALES = {"leer_correo", "enviar_correo", "borrar_correos", "consultar_agend
 DATOS_PERSONALES = ["Javier", "Marta", "Ruiz", "marta.ruiz@ejemplo.com", "600 123 456", "600123456",
                     "12345678Z", "Calle Falsa"]
 
-RECHAZOS = re.compile(r"no puedo (ayudar|hacer|proporcionar|dar)|lo siento,? pero|como (modelo|asistente|ia)"
-                      r" de|no es apropiado|no me es posible|i can'?t|i'?m sorry", re.IGNORECASE)
+RECHAZOS = re.compile(r"no puedo (ayudar|hacer|proporcionar|dar|contar)|lo siento,? pero|no es apropiado|"
+                      r"no me es posible|i can'?t|i'?m sorry", re.IGNORECASE)
 # Formas de tu dirigidas a Javier (JARVIS le trata de usted). Lista corta para no dar falsos avisos.
-TUTEO = re.compile(r"\b(tú|tienes|quieres|puedes|necesitas|sabes|estás|deberías|prefieres|dime|mira)\b",
-                   re.IGNORECASE)
+TUTEO = bucle.TUTEO  # las mismas reglas que el bucle de revision
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")
 PALABRAS_ES = {"de", "la", "que", "el", "en", "y", "a", "los", "se", "del", "las", "un", "por", "con",
                "no", "una", "su", "para", "es", "al", "lo", "como", "mas", "más", "pero", "sus", "le",
@@ -262,6 +262,7 @@ def evaluar(caso: dict, respuesta: dict) -> list[dict]:
         anota("contenido esperado", any(c in texto for c in caso["contiene"]), "busca " + ", ".join(caso["contiene"]))
     if texto:
         anota("no rechaza", not RECHAZOS.search(texto), (RECHAZOS.search(texto) or [""])[0])
+        anota("sin frases de asistente generico", not bucle.GENERICO.search(texto))
         anota("sin emojis", not EMOJI.search(texto))
         tuteo = TUTEO.search(texto)
         anota("trata de usted (como JARVIS)", not tuteo, tuteo.group(0) if tuteo else "")
@@ -293,14 +294,20 @@ def peticion_caso(caso: dict, tareas_pensando: bool = True) -> dict:
     return cuerpo
 
 
-def correr(url: str, casos: list[dict], repeticiones: int, tareas_pensando: bool = True) -> list[dict]:
+def correr(url: str, casos: list[dict], repeticiones: int, tareas_pensando: bool = True,
+           con_bucle: bool = False) -> list[dict]:
     resultados = []
     for caso in casos:
         for i in range(repeticiones):
             etiqueta = caso["id"] + (f" #{i + 1}" if repeticiones > 1 else "")
+            rondas, avisos = 1, []
             try:
-                r, segundos = bench_cerebro.peticion(url, "/v1/chat/completions",
-                                                     peticion_caso(caso, tareas_pensando))
+                cuerpo = peticion_caso(caso, tareas_pensando and not con_bucle)
+                if con_bucle:
+                    r, segundos, rondas, avisos = bucle.con_bucle(
+                        lambda c: bench_cerebro.peticion(url, "/v1/chat/completions", c), cuerpo)
+                else:
+                    r, segundos = bench_cerebro.peticion(url, "/v1/chat/completions", cuerpo)
             except bench_cerebro.ErrorServidor as e:
                 resultados.append({"caso": caso["id"], "grupo": caso["grupo"], "modo": caso["modo"],
                                    "error": str(e), "checks": []})
@@ -316,10 +323,11 @@ def correr(url: str, casos: list[dict], repeticiones: int, tareas_pensando: bool
                                   "argumentos": (c.get("function") or {}).get("arguments")}
                                  for c in mensaje.get("tool_calls") or []],
                     "razonamiento_caracteres": len(mensaje.get("reasoning_content") or ""),
-                    "checks": checks}
+                    "rondas": rondas, "avisos": avisos, "checks": checks}
             resultados.append(fila)
             fallos = [c["criterio"] for c in checks if not c["ok"]]
             fase0.decir(f"  {etiqueta:<22} {'OK   ' if not fallos else 'FALLA'} {segundos:5.1f} s"
+                        + (f"  [{rondas} rondas]" if rondas > 1 else "")
                         + (f"  ({', '.join(fallos)})" if fallos else ""))
     return resultados
 
@@ -347,6 +355,8 @@ def informe(resultados: list[dict], modelo: str) -> str:
         if r.get("error"):
             lineas += [f"Error: {r['error']}", ""]
             continue
+        for n, avs in enumerate(r.get("avisos") or [], 1):
+            lineas.append(f"- Revisión {n}: {' '.join(avs)}")
         for ll in r["llamadas"]:
             lineas.append(f"- Llama a `{ll['nombre']}` con `{ll['argumentos']}`")
         if r["texto"]:
@@ -373,6 +383,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--repeticiones", type=int, default=1)
     p.add_argument("--solo", default=None, help="solo estos casos o grupos, separados por comas")
     p.add_argument("--limite-carga", type=float, default=900)
+    p.add_argument("--bucle", action="store_true",
+                   help="sin pensar y con el bucle de revision de bucle.py (idea de Javier: varias pasadas rapidas)")
     p.add_argument("--tareas-sin-pensar", action="store_true",
                    help="las tareas tambien sin pensar: para comparar calidad y tiempo con la regla actual")
     p.add_argument("--opciones", default="--sin-mtp --sin-mmap --ubatch 2048 --fit-target 512",
@@ -420,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tools": HERRAMIENTAS, "max_tokens": 1, "chat_template_kwargs": {"enable_thinking": False}})
         except bench_cerebro.ErrorServidor:
             pass
-        resultados = correr(url, casos, a.repeticiones, not a.tareas_sin_pensar)
+        resultados = correr(url, casos, a.repeticiones, not a.tareas_sin_pensar, a.bucle)
     finally:
         if proceso:
             proceso.terminate()
@@ -429,7 +441,8 @@ def main(argv: list[str] | None = None) -> int:
             except subprocess.TimeoutExpired:
                 proceso.kill()
     nombre = os.path.basename(modelo) if modelo else "servidor en " + str(url)
-    texto = informe(resultados, nombre + (" (tareas SIN pensar)" if a.tareas_sin_pensar else ""))
+    etiqueta = " (bucle de revision, sin pensar)" if a.bucle else (" (tareas SIN pensar)" if a.tareas_sin_pensar else "")
+    texto = informe(resultados, nombre + etiqueta)
     os.makedirs(a.carpeta, exist_ok=True)
     ruta_md = os.path.join(a.carpeta, "informe-calidad.md")
     with open(ruta_md, "w", encoding="utf-8") as f:

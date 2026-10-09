@@ -484,8 +484,9 @@ precalentando al arrancar (Fase 2).
 - **Turnos de 3,7-11 s** (razona 104-363 tokens a ~33 tok/s).
 - **La herramienta, en 11,3 s** (sin pensar, 2,9 s).
 - Velocidad al escribir, la misma.
-- **Decisión de Javier:** si habla con él, **no piensa**. Si le manda una **tarea**, **piensa** y
-  delega lo que toque. Lo decide el código en cada petición (Fase 4).
+- **Decisión revisada (9-oct, tras la batería):** **nunca piensa**. Pensar tarda 20-80 s y apenas
+  mejora. En su lugar: pasadas rápidas sin pensar revisadas por código (`fase1/bucle.py`), y el
+  trabajo grande va al equipo de **JADIS Office** (ENCARGO 2.2 y 2.3).
 
 **Ajustes (8-oct):**
 

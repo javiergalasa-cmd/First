@@ -93,15 +93,65 @@ las pruebas de la sección 6.
 
 ---
 
-## 2.2 Cuándo piensa (decisión de Javier, 9-oct)
+## 2.2 Nunca piensa: pasadas rápidas revisadas por código (decisión de Javier, 9-oct)
 
-- **Si Javier habla con él:** sin pensar (`enable_thinking: false`). Responde en 1-2 s.
-- **Si le manda una tarea:** pensando (`enable_thinking: true`). Decide qué hace él y qué
-  delega. Unos 4-11 s medidos.
+**Lo medido (batería de `fase1/`, 3 repeticiones):** pensar no le hace mucho más listo y le hace
+mucho más lento.
 
-Lo decide el código en cada petición, no el modelo: por ejemplo, con un clasificador sencillo
-(¿es una orden o pide algo hecho?) o con la intención que detecte el HUD. Se valida con la
-batería de `fase1/`.
+| Tarea | Pensando | Sin pensar |
+|---|---|---|
+| Delegar | 29 s de media, hasta 80 s | 3,3 s |
+| Lo personal (agenda, alarma…) | 17 s | 1,3 s |
+| Calidad | Mejor en "no lo envíes" y en usar la herramienta | Afirma "hecho" sin haber llamado a la herramienta; envió un correo que Javier dijo que no enviara |
+
+**Decisión:** nunca piensa. En su lugar, cada respuesta pasa por el **bucle de revisión**
+([`fase1/bucle.py`](fase1/bucle.py)):
+
+1. Responde sin pensar (1-2 s).
+2. **El código la revisa con reglas fijas:**
+   - dice "hecho" sin haber llamado a la herramienta;
+   - usa una herramienta que Javier ha prohibido ("no lo envíes");
+   - mete en un encargo datos personales del mensaje;
+   - repite lo que ya entregó un subagente;
+   - tutea, usa emojis o habla como un asistente genérico.
+3. Si hay avisos, se le devuelven ("[Revisión automática de JADIS] …") y responde otra vez, hasta
+   3 rondas. Cada ronda, 1-2 s.
+
+**Por qué con reglas y no "que se revise a sí mismo":** un modelo pequeño que se corrige sin
+información nueva suele no mejorar. Con un aviso concreto y comprobable sí corrige. Las reglas son
+la información nueva.
+
+Los avisos van al final de la conversación, así que la caché no se rompe.
+
+## 2.3 Las tareas grandes: el equipo de JADIS Office
+
+El bucle de 2.2 sirve para las decisiones del cerebro (qué hacer, qué herramienta usar, qué
+delegar). El **trabajo grande** (investigar, escribir, programar) no lo hace él: lo hace un
+**equipo** que itera hasta que el trabajo pasa una verificación. Ese equipo es **JADIS Office**,
+el proyecto de la sesión "JADIS Phase 0 audit y setup":
+
+- Director, Architect, workers, Verifier y Presenter.
+- Un Stop-hook que no deja terminar con tareas abiertas.
+- Verificación con pruebas en lugar de opiniones.
+- Motor durable sobre SQLite.
+- Modelos de la nube por un gateway.
+
+**Cómo encajan:**
+
+- **`delegar` gana un destino:** `subagente` (una pregunta, una respuesta: horarios, precios, una
+  explicación) u `office` (un encargo con entregable verificable: un informe, un script con
+  pruebas, una presentación).
+- **El cerebro escribe el brief sin datos personales,** igual que un encargo normal. Pasa por la
+  frontera del router y por el candado de procedencia.
+- **Las preguntas de Office a Javier** (su "owner proxy") llegan al cerebro. El cerebro contesta
+  con la tarea mínima y nunca le pasa memoria en bruto: la memoria de Javier no sale del PC.
+- **Las aprobaciones y los "hard stops" de Office** usan las tarjetas de JADIS (PC + móvil, D1).
+
+**Pendiente:**
+
+- Office está en su Fase 0 y su trabajo aún no está subido. Hay una decisión abierta en esa sesión
+  sobre dónde guardarlo, porque el repo `First` es público.
+- La integración se diseña cuando Office tenga API.
 
 ## 3. Paso directo: que el cerebro escriba poco
 
