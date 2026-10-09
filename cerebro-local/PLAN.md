@@ -479,6 +479,14 @@ turno de una conversación en 1,2 s** (frente a 13-16 s del 27B). La caché func
 **Con el prompt realista de 12.500 tokens y herramientas:** 32 tok/s, turnos de 1-2 s,
 herramienta OK en 2,8 s. El primer turno tarda 30 s (leer el prompt entero); se evita
 precalentando al arrancar (Fase 2).
+**Pensando (9-oct, prompt de 12.500 tokens):**
+
+- **Turnos de 3,7-11 s** (razona 104-363 tokens a ~33 tok/s).
+- **La herramienta, en 11,3 s** (sin pensar, 2,9 s).
+- Velocidad al escribir, la misma.
+- **Decisión de Javier:** pensar apagado por defecto. Solo se enciende petición a petición en
+  lo personal o arriesgado que no se puede delegar (Fase 4).
+
 **Ajustes (8-oct):**
 
 - Al escribir, todo da ~33-37 tok/s: el techo lo pone la RAM y las diferencias son ruido.
