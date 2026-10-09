@@ -484,8 +484,8 @@ precalentando al arrancar (Fase 2).
 - **Turnos de 3,7-11 s** (razona 104-363 tokens a ~33 tok/s).
 - **La herramienta, en 11,3 s** (sin pensar, 2,9 s).
 - Velocidad al escribir, la misma.
-- **Decisión de Javier:** pensar apagado por defecto. Solo se enciende petición a petición en
-  lo personal o arriesgado que no se puede delegar (Fase 4).
+- **Decisión de Javier:** si habla con él, **no piensa**. Si le manda una **tarea**, **piensa** y
+  delega lo que toque. Lo decide el código en cada petición (Fase 4).
 
 **Ajustes (8-oct):**
 
@@ -1099,6 +1099,9 @@ Ajuste manual previo: **Sysmem Fallback** de NVIDIA (en el README).
 Lo decidimos con los números delante.
 
 ### Fase 1 — Elegir la versión sin censura · ~1 tarde
+
+> **Hecho el 9-oct:** batería de calidad lista en [`fase1/`](fase1/) (`python calidad.py`), con el
+> modelo elegido en la Fase 0 (Qwen3.6-35B-A3B sin censura).
 
 - **Opción A, descargar.** Candidatas de la tabla 5.7 que conserven el MTP. Checklist:
   1. Solo `.gguf`, con el SHA256 anotado.

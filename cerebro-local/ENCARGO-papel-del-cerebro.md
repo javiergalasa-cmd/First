@@ -93,6 +93,16 @@ las pruebas de la sección 6.
 
 ---
 
+## 2.2 Cuándo piensa (decisión de Javier, 9-oct)
+
+- **Si Javier habla con él:** sin pensar (`enable_thinking: false`). Responde en 1-2 s.
+- **Si le manda una tarea:** pensando (`enable_thinking: true`). Decide qué hace él y qué
+  delega. Unos 4-11 s medidos.
+
+Lo decide el código en cada petición, no el modelo: por ejemplo, con un clasificador sencillo
+(¿es una orden o pide algo hecho?) o con la intención que detecte el HUD. Se valida con la
+batería de `fase1/`.
+
 ## 3. Paso directo: que el cerebro escriba poco
 
 Con un cerebro a 5-10 tok/s, reescribir una respuesta de 300 palabras son ~60 s. El paso
