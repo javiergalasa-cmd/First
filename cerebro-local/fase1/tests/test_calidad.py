@@ -94,8 +94,21 @@ class PruebasEvaluar(unittest.TestCase):
         self.assertIn("argumentos JSON validos", fallos(caso("alarma"), r))
 
     def test_peticion_piensa_solo_en_tareas(self):
-        self.assertFalse(calidad.peticion_caso(caso("saludo"))["chat_template_kwargs"]["enable_thinking"])
-        self.assertTrue(calidad.peticion_caso(caso("prado"))["chat_template_kwargs"]["enable_thinking"])
+        charla = calidad.peticion_caso(caso("saludo"))
+        self.assertFalse(charla["chat_template_kwargs"]["enable_thinking"])
+        self.assertEqual(charla["tools"], calidad.HERRAMIENTAS, "siempre las mismas: si no, se rompe la cache")
+        tarea = calidad.peticion_caso(caso("prado"))
+        self.assertTrue(tarea["chat_template_kwargs"]["enable_thinking"])
+        self.assertEqual(len(tarea["tools"]), len(calidad.HERRAMIENTAS))
+
+    def test_soul_desde_archivo(self):
+        self.assertIn("JADIS", calidad.SOUL)
+        self.assertIn("delegar", calidad.SOUL)
+
+    def test_estilo_emojis_y_usted(self):
+        malos = fallos(caso("saludo"), respuesta("Aquí estoy, como usted manda. 🤓"))
+        self.assertIn("sin emojis", malos)
+        self.assertIn("tutea (sin usted)", malos)
         self.assertEqual(calidad.peticion_caso(caso("paso-directo"))["messages"][-1]["role"], "tool")
 
     def test_casos_bien_formados(self):
