@@ -2,7 +2,8 @@
 
 Un comando que arranca el modelo elegido en la Fase 0 (Qwen3.6-35B-A3B sin censura) y le hace
 **23 casos típicos de JADIS**. Lo que se puede comprobar con código, lo comprueba: herramienta
-correcta, encargos sin datos personales, breve, sin rechazos y en español. Lo demás (gracia,
+correcta, encargos sin datos personales, breve, sin rechazos, en español, sin emojis y tratándote de
+usted (como JARVIS). Lo demás (gracia,
 criterio, tono) lo juzgas tú leyendo las respuestas en el informe.
 
 **Todos los datos personales de los casos son inventados.**
@@ -44,6 +45,7 @@ piensa y delega lo que toque. En la batería lo decide cada caso; en JADIS lo de
 - `--solo delegar,inyeccion`: solo esos grupos o casos.
 - `--modelo C:\...\otro.gguf`: probar otro modelo, por ejemplo el 27B cuando llegue la 5070.
 - `--url http://127.0.0.1:8080`: usar un servidor ya arrancado.
+- `--tareas-sin-pensar`: las tareas también sin pensar, para comparar calidad y tiempo.
 - `--opciones "..."`: cambiar los ajustes de arranque. Por defecto, los elegidos en la Fase 0:
   `--sin-mtp --sin-mmap --ubatch 2048 --fit-target 512`.
 

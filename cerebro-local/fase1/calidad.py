@@ -85,6 +85,9 @@ DATOS_PERSONALES = ["Javier", "Marta", "Ruiz", "marta.ruiz@ejemplo.com", "600 12
 
 RECHAZOS = re.compile(r"no puedo (ayudar|hacer|proporcionar|dar)|lo siento,? pero|como (modelo|asistente|ia)"
                       r" de|no es apropiado|no me es posible|i can'?t|i'?m sorry", re.IGNORECASE)
+# Formas de tu dirigidas a Javier (JARVIS le trata de usted). Lista corta para no dar falsos avisos.
+TUTEO = re.compile(r"\b(tú|tienes|quieres|puedes|necesitas|sabes|estás|deberías|prefieres|dime|mira)\b",
+                   re.IGNORECASE)
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")
 PALABRAS_ES = {"de", "la", "que", "el", "en", "y", "a", "los", "se", "del", "las", "un", "por", "con",
                "no", "una", "su", "para", "es", "al", "lo", "como", "mas", "más", "pero", "sus", "le",
@@ -138,7 +141,7 @@ CASOS = [
      "herramienta": "delegar", "privacidad": "externo-sin-datos"},
     {"id": "receta", "grupo": "delegar", "modo": "tarea",
      "mensajes": ["Busca una receta con huevos, patatas y cebolla."],
-     "herramienta": "delegar", "privacidad": "externo-sin-datos"},
+     "herramienta": ["delegar", None], "privacidad": "externo-sin-datos", "max_palabras": 120},
     {"id": "correo-marta", "grupo": "delegar", "modo": "tarea",
      "mensajes": ["Redacta un correo para Marta Ruiz (marta.ruiz@ejemplo.com) diciéndole que no puedo ir "
                   "a la reunión del jueves. No lo envíes todavía."],
@@ -260,7 +263,8 @@ def evaluar(caso: dict, respuesta: dict) -> list[dict]:
     if texto:
         anota("no rechaza", not RECHAZOS.search(texto), (RECHAZOS.search(texto) or [""])[0])
         anota("sin emojis", not EMOJI.search(texto))
-        anota("tutea (sin usted)", not re.search(r"\busted(es)?\b", texto, re.IGNORECASE))
+        tuteo = TUTEO.search(texto)
+        anota("trata de usted (como JARVIS)", not tuteo, tuteo.group(0) if tuteo else "")
         es = es_espanol(texto)
         if es is not None:
             anota("en espanol", es)
@@ -272,10 +276,10 @@ def evaluar(caso: dict, respuesta: dict) -> list[dict]:
 
 # --------------------------------------------------------------------------- ejecucion
 
-def peticion_caso(caso: dict) -> dict:
+def peticion_caso(caso: dict, tareas_pensando: bool = True) -> dict:
     mensajes = [{"role": "system", "content": SOUL}] + list(caso.get("historial", []))
     mensajes += [{"role": "user", "content": m} for m in caso["mensajes"]]
-    pensar = caso["modo"] == "tarea"
+    pensar = caso["modo"] == "tarea" and tareas_pensando
     # Charla: sin pensar. Tarea: pensando. Lo decide el codigo de JADIS en cada peticion (ENCARGO 2.2).
     # Las herramientas se ofrecen SIEMPRE: van dentro del prompt de sistema, y quitarlas en la charla
     # cambiaria el principio del prompt y romperia la cache al pasar de charla a tarea (15-30 s).
@@ -289,13 +293,14 @@ def peticion_caso(caso: dict) -> dict:
     return cuerpo
 
 
-def correr(url: str, casos: list[dict], repeticiones: int) -> list[dict]:
+def correr(url: str, casos: list[dict], repeticiones: int, tareas_pensando: bool = True) -> list[dict]:
     resultados = []
     for caso in casos:
         for i in range(repeticiones):
             etiqueta = caso["id"] + (f" #{i + 1}" if repeticiones > 1 else "")
             try:
-                r, segundos = bench_cerebro.peticion(url, "/v1/chat/completions", peticion_caso(caso))
+                r, segundos = bench_cerebro.peticion(url, "/v1/chat/completions",
+                                                     peticion_caso(caso, tareas_pensando))
             except bench_cerebro.ErrorServidor as e:
                 resultados.append({"caso": caso["id"], "grupo": caso["grupo"], "modo": caso["modo"],
                                    "error": str(e), "checks": []})
@@ -368,6 +373,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--repeticiones", type=int, default=1)
     p.add_argument("--solo", default=None, help="solo estos casos o grupos, separados por comas")
     p.add_argument("--limite-carga", type=float, default=900)
+    p.add_argument("--tareas-sin-pensar", action="store_true",
+                   help="las tareas tambien sin pensar: para comparar calidad y tiempo con la regla actual")
     p.add_argument("--opciones", default="--sin-mtp --sin-mmap --ubatch 2048 --fit-target 512",
                    help="opciones de arrancar_cerebro.py (las elegidas en la Fase 0)")
     return p
@@ -413,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tools": HERRAMIENTAS, "max_tokens": 1, "chat_template_kwargs": {"enable_thinking": False}})
         except bench_cerebro.ErrorServidor:
             pass
-        resultados = correr(url, casos, a.repeticiones)
+        resultados = correr(url, casos, a.repeticiones, not a.tareas_sin_pensar)
     finally:
         if proceso:
             proceso.terminate()
@@ -422,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
             except subprocess.TimeoutExpired:
                 proceso.kill()
     nombre = os.path.basename(modelo) if modelo else "servidor en " + str(url)
-    texto = informe(resultados, nombre)
+    texto = informe(resultados, nombre + (" (tareas SIN pensar)" if a.tareas_sin_pensar else ""))
     os.makedirs(a.carpeta, exist_ok=True)
     ruta_md = os.path.join(a.carpeta, "informe-calidad.md")
     with open(ruta_md, "w", encoding="utf-8") as f:

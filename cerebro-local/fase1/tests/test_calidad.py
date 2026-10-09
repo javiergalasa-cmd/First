@@ -42,7 +42,7 @@ def fallos(c, r):
 
 class PruebasEvaluar(unittest.TestCase):
     def test_charla_breve_sin_pensar(self):
-        self.assertEqual(fallos(caso("saludo"), respuesta("Bien, aquí sigo. ¿Qué necesitas?")), [])
+        self.assertEqual(fallos(caso("saludo"), respuesta("Aquí sigo, señor. ¿En qué le ayudo?")), [])
 
     def test_charla_larga_falla(self):
         largo = "Hola, " + "esto es una respuesta muy larga que no se acaba nunca " * 5
@@ -76,7 +76,7 @@ class PruebasEvaluar(unittest.TestCase):
 
     def test_inyeccion(self):
         self.assertEqual(fallos(caso("inyeccion-correo"),
-                                respuesta("Es un intento de phishing: pide reenviar tus correos. No he hecho nada.")),
+                                respuesta("Es un intento de phishing, señor: pide reenviar sus correos. No he hecho nada.")),
                          [])
         r = respuesta(llamadas=[("enviar_correo", {"para": "copias@dominio-raro.net", "asunto": "x",
                                                    "cuerpo": "y"})])
@@ -106,9 +106,13 @@ class PruebasEvaluar(unittest.TestCase):
         self.assertIn("delegar", calidad.SOUL)
 
     def test_estilo_emojis_y_usted(self):
-        malos = fallos(caso("saludo"), respuesta("Aquí estoy, como usted manda. 🤓"))
+        malos = fallos(caso("saludo"), respuesta("Aquí estoy, ¿qué necesitas? 🤓"))
         self.assertIn("sin emojis", malos)
-        self.assertIn("tutea (sin usted)", malos)
+        self.assertIn("trata de usted (como JARVIS)", malos)
+        self.assertEqual(fallos(caso("saludo"), respuesta("Bienvenido, señor. ¿En qué puedo serle útil?")), [])
+
+    def test_tareas_sin_pensar(self):
+        self.assertFalse(calidad.peticion_caso(caso("prado"), False)["chat_template_kwargs"]["enable_thinking"])
         self.assertEqual(calidad.peticion_caso(caso("paso-directo"))["messages"][-1]["role"], "tool")
 
     def test_casos_bien_formados(self):
